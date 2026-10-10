@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/gate.schema.json",
+  "title": "ORQIVRA Validation Gate",
+  "$ref": "#/$defs/gate",
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "required", "status", "evidence"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "description": {"type": "string", "minLength": 1},
+        "required": {"type": "boolean"},
+        "status": {"enum": ["VERIFIED", "DEFERRED_EXTERNAL", "NOT_RUN", "FAILED"]},
+        "evidence": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

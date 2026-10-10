@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/usage.schema.json",
+  "title": "ORQIVRA Usage Observation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["provider", "source", "input_tokens", "output_tokens", "cache_tokens"],
+  "properties": {
+    "provider": {"enum": ["openai", "anthropic", "google", "unknown"]},
+    "source": {"enum": ["reported", "unavailable"]},
+    "input_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "output_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "cache_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "observation_note": {"type": "string"}
+  }
+}

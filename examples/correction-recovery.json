@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "correction-and-recovery",
+  "objective": "Correct a failed change while preserving its history and retry count.",
+  "input_snapshot": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nodes": [
+    {
+      "id": "correct-parser-change",
+      "objective": "Correct the parser change after the first verification found an edge case.",
+      "inputs": ["fixtures/parser-input.json"],
+      "dependencies": [],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["src/parser.py", "tests/parser_cases.json"],
+      "risk": "medium",
+      "acceptance_criteria": ["The original behavior remains valid and the reported edge case passes."],
+      "verification": ["Run the documented parser verification and record its result."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    },
+    {
+      "id": "recheck-after-interruption",
+      "objective": "Resume the affected work after an interrupted session without losing attempts.",
+      "inputs": ["fixtures/parser-input.json"],
+      "dependencies": ["correct-parser-change"],
+      "role": "orchestrator",
+      "profile": "local-default",
+      "file_scope": ["session-notes/recovery.md"],
+      "risk": "medium",
+      "acceptance_criteria": ["The changed input is rechecked and only affected descendants are reopened."],
+      "verification": ["Inspect the resumed statuses and confirm prior attempt counts remain."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    }
+  ]
+}

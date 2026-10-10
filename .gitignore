@@ -1,0 +1,10 @@
+.venv/
+.artifacts/
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.coverage
+*.lock

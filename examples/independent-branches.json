@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "id": "independent-contract-updates",
+  "objective": "Update two independent contract references and integrate the results.",
+  "input_snapshot": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nodes": [
+    {
+      "id": "update-architecture-contract",
+      "objective": "Clarify the architecture acceptance contract.",
+      "inputs": ["core/contracts/capabilities.md"],
+      "dependencies": [],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["core/contracts/capabilities.md"],
+      "risk": "medium",
+      "acceptance_criteria": ["The architecture contract remains provider-neutral."],
+      "verification": ["Validate the edited Markdown and review its contract language."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    },
+    {
+      "id": "update-cli-reference",
+      "objective": "Clarify a public CLI example.",
+      "inputs": ["docs/cli-contract.md"],
+      "dependencies": [],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["docs/cli-contract.md"],
+      "risk": "medium",
+      "acceptance_criteria": ["The documented command remains within the public CLI contract."],
+      "verification": ["Check the documented syntax against CLI help."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    },
+    {
+      "id": "integrate-contract-updates",
+      "objective": "Review consistency after both independent updates are accepted.",
+      "inputs": ["core/contracts/capabilities.md", "docs/cli-contract.md"],
+      "dependencies": ["update-architecture-contract", "update-cli-reference"],
+      "role": "reviewer",
+      "profile": "local-default",
+      "file_scope": ["README.md"],
+      "risk": "medium",
+      "acceptance_criteria": ["The two updates agree on shared behavior and commands."],
+      "verification": ["Review the integrated contract references."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    }
+  ]
+}

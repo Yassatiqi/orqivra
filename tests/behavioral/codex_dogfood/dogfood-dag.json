@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "id": "codex-dogfood-jsonl-parser",
+  "objective": "Specify, implement, and verify a small JSONL parser correction.",
+  "input_snapshot": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nodes": [
+    {
+      "id": "define-parser-contract",
+      "objective": "Define blank-line, record, and error behavior for the fixture parser.",
+      "inputs": ["input.jsonl"],
+      "dependencies": [],
+      "role": "complex_implementer",
+      "profile": "local-default",
+      "file_scope": ["CONTRACT.md"],
+      "risk": "low",
+      "acceptance_criteria": ["The contract states valid input, output, and malformed-input behavior."],
+      "verification": ["Review the contract against the controlled input fixture."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    },
+    {
+      "id": "implement-jsonl-parser",
+      "objective": "Implement the parser behavior defined by the accepted contract.",
+      "inputs": ["input.jsonl"],
+      "dependencies": ["define-parser-contract"],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["parser.py"],
+      "risk": "low",
+      "acceptance_criteria": ["The parser skips blank lines, returns JSON objects, and rejects malformed or non-object records."],
+      "verification": ["Run the focused parser unit tests."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    },
+    {
+      "id": "verify-jsonl-parser",
+      "objective": "Independently check the final parser behavior against the fixture contract.",
+      "inputs": ["input.jsonl"],
+      "dependencies": ["implement-jsonl-parser"],
+      "role": "reviewer",
+      "profile": "local-default",
+      "file_scope": ["test_parser.py"],
+      "risk": "low",
+      "acceptance_criteria": ["All focused parser behavior tests pass without weakened assertions."],
+      "verification": ["Run all four parser fixture tests and inspect the current implementation."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    }
+  ]
+}

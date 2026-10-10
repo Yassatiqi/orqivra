@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/state.schema.json",
+  "title": "ORQIVRA Session State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "project_root", "dag_id", "plan_hash", "plan_header_hash", "dag_snapshot", "version", "input_hashes", "pending_resume", "nodes", "events"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "project_id": {"type": "string", "minLength": 1},
+    "project_root": {"type": "string", "minLength": 1},
+    "dag_id": {"type": "string", "minLength": 1},
+    "plan_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "plan_header_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "dag_snapshot": {"$ref": "dag.schema.json#/$defs/hash"},
+    "version": {"type": "integer", "minimum": 1},
+    "input_hashes": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+    "pending_resume": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "nodes": {"type": "object", "minProperties": 1, "additionalProperties": {"$ref": "#/$defs/nodeState"}},
+    "events": {"type": "array", "items": {"$ref": "#/$defs/event"}}
+  },
+  "$defs": {
+    "nodeState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "definition_hash", "dependencies", "inputs", "attempts", "evidence", "obligations", "blocking_reason"],
+      "properties": {
+        "status": {"enum": ["planned", "ready", "running", "verifying", "fix_required", "blocked", "accepted", "obsolete"]},
+        "definition_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "dependencies": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "inputs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "attempts": {"type": "array", "items": {"$ref": "attempt.schema.json"}},
+        "evidence": {"type": "array", "items": {"$ref": "evidence.schema.json"}},
+        "obligations": {"type": "array", "items": {"$ref": "gate.schema.json#/$defs/gate"}},
+        "blocking_reason": {"type": ["string", "null"]}
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "timestamp", "action", "node_id", "detail"],
+      "properties": {
+        "version": {"type": "integer", "minimum": 1},
+        "timestamp": {"type": "string", "format": "date-time"},
+        "action": {"type": "string", "minLength": 1},
+        "node_id": {"type": ["string", "null"]},
+        "detail": {"type": "object"}
+      }
+    }
+  }
+}

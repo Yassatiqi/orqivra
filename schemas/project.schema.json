@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/project.schema.json",
+  "title": "ORQIVRA Project Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "name", "root", "inputs", "profile"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "name": {"type": "string", "minLength": 1},
+    "root": {"type": "string", "minLength": 1},
+    "inputs": {"type": "array", "items": {"$ref": "#/$defs/relativePath"}, "uniqueItems": true},
+    "profile": {"type": "string", "minLength": 1},
+    "adapter": {"type": "string", "enum": ["generic", "mip"]},
+    "obligations": {"type": "array", "items": {"$ref": "gate.schema.json#/$defs/gate"}}
+  },
+  "$defs": {
+    "relativePath": {"type": "string", "minLength": 1, "not": {"pattern": "^(?:[A-Za-z]:|/|\\\\)|(?:^|[/\\\\])\\.\\.(?:[/\\\\]|$)"}}
+  }
+}

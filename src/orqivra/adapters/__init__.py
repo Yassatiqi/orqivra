@@ -1,0 +1,1 @@
+"""Optional project adapters."""

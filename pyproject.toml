@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orqivra"
+version = "0.1.0"
+description = "A local, provider-independent engineering workflow framework for AI agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+dependencies = ["jsonschema>=4.22,<5", "PyYAML>=6,<7"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+
+[project.scripts]
+orqivra = "orqivra.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.data-files]
+"share/orqivra/schemas" = ["schemas/*.json"]
+"share/orqivra/core/contracts" = ["core/contracts/*.md"]
+"share/orqivra/profiles" = ["profiles/*.json"]
+"share/orqivra/editions/codex/.agents/skills/orqivra-orchestrate" = ["editions/codex/.agents/skills/orqivra-orchestrate/SKILL.md"]
+"share/orqivra/editions/codex/.agents/skills/orqivra-architecture" = ["editions/codex/.agents/skills/orqivra-architecture/SKILL.md"]
+"share/orqivra/editions/codex/.agents/skills/orqivra-verify" = ["editions/codex/.agents/skills/orqivra-verify/SKILL.md"]
+"share/orqivra/editions/codex/.agents/skills/orqivra-recover" = ["editions/codex/.agents/skills/orqivra-recover/SKILL.md"]
+"share/orqivra/editions/claude-code/.claude/skills/orqivra-orchestrate" = ["editions/claude-code/.claude/skills/orqivra-orchestrate/SKILL.md"]
+"share/orqivra/editions/claude-code/.claude/skills/orqivra-architecture" = ["editions/claude-code/.claude/skills/orqivra-architecture/SKILL.md"]
+"share/orqivra/editions/claude-code/.claude/skills/orqivra-verify" = ["editions/claude-code/.claude/skills/orqivra-verify/SKILL.md"]
+"share/orqivra/editions/claude-code/.claude/skills/orqivra-recover" = ["editions/claude-code/.claude/skills/orqivra-recover/SKILL.md"]
+"share/orqivra/editions/gemini-cli/.gemini/skills/orqivra-orchestrate" = ["editions/gemini-cli/.gemini/skills/orqivra-orchestrate/SKILL.md"]
+"share/orqivra/editions/gemini-cli/.gemini/skills/orqivra-architecture" = ["editions/gemini-cli/.gemini/skills/orqivra-architecture/SKILL.md"]
+"share/orqivra/editions/gemini-cli/.gemini/skills/orqivra-verify" = ["editions/gemini-cli/.gemini/skills/orqivra-verify/SKILL.md"]
+"share/orqivra/editions/gemini-cli/.gemini/skills/orqivra-recover" = ["editions/gemini-cli/.gemini/skills/orqivra-recover/SKILL.md"]
+
+[tool.unittest]
+start-directory = "tests"

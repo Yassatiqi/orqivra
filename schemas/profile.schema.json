@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/profile.schema.json",
+  "title": "ORQIVRA Model Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "edition", "roles"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "edition": {"enum": ["codex", "claude-code", "gemini-cli"]},
+    "roles": {
+      "type": "object",
+      "required": ["orchestrator", "implementer", "complex_implementer", "reviewer"],
+      "additionalProperties": false,
+      "properties": {
+        "orchestrator": {"$ref": "#/$defs/role"},
+        "implementer": {"$ref": "#/$defs/role"},
+        "complex_implementer": {"$ref": "#/$defs/role"},
+        "reviewer": {"$ref": "#/$defs/role"}
+      }
+    }
+  },
+  "$defs": {
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "effort", "activatable"],
+      "properties": {
+        "provider": {"enum": ["openai", "anthropic", "google", "user-supplied", "unresolved"]},
+        "model": {"type": ["string", "null"]},
+        "effort": {"type": ["string", "null"]},
+        "activatable": {"type": "boolean"},
+        "qualification": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

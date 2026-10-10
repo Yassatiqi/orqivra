@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/evidence.schema.json",
+  "title": "ORQIVRA Evidence Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "command", "exit_code", "snapshot", "recorded_at", "artifacts"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "command": {"type": "string", "minLength": 1},
+    "exit_code": {"type": "integer"},
+    "snapshot": {"$ref": "dag.schema.json#/$defs/hash"},
+    "recorded_at": {"type": "string", "format": "date-time"},
+    "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}}
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    }
+  }
+}

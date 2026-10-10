@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/attempt.schema.json",
+  "title": "ORQIVRA Attempt Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["number", "hypothesis", "started_at", "diagnosis", "changes", "verification_result", "verification_summary"],
+  "properties": {
+    "number": {"type": "integer", "minimum": 1, "maximum": 5},
+    "hypothesis": {"type": "string", "minLength": 1},
+    "started_at": {"type": "string", "format": "date-time"},
+    "diagnosis": {"type": ["string", "null"]},
+    "changes": {"type": "array", "items": {"type": "string"}},
+    "verification_result": {"enum": ["pending", "pass", "fail", "interrupted"]},
+    "verification_summary": {"type": ["string", "null"]}
+  }
+}

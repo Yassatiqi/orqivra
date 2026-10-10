@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "claude-code-unresolved-sample",
+  "edition": "claude-code",
+  "roles": {
+    "orchestrator": {
+      "provider": "user-supplied",
+      "model": null,
+      "effort": null,
+      "activatable": false,
+      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
+    },
+    "implementer": {
+      "provider": "user-supplied",
+      "model": null,
+      "effort": null,
+      "activatable": false,
+      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
+    },
+    "complex_implementer": {
+      "provider": "user-supplied",
+      "model": null,
+      "effort": null,
+      "activatable": false,
+      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
+    },
+    "reviewer": {
+      "provider": "user-supplied",
+      "model": null,
+      "effort": null,
+      "activatable": false,
+      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "astra-advisor-codex",
+  "edition": "codex",
+  "roles": {
+    "orchestrator": {
+      "provider": "openai",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "activatable": false,
+      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
+    },
+    "implementer": {
+      "provider": "openai",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "activatable": false,
+      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
+    },
+    "complex_implementer": {
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "effort": "xhigh",
+      "activatable": false,
+      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
+    },
+    "reviewer": {
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "effort": "high",
+      "activatable": false,
+      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "solo-copy-update",
+  "objective": "Update the project quick-start wording in one file.",
+  "input_snapshot": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nodes": [
+    {
+      "id": "update-quick-start",
+      "objective": "Clarify the first local setup step.",
+      "inputs": [],
+      "dependencies": [],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["README.md"],
+      "risk": "low",
+      "acceptance_criteria": ["The quick-start step is clear and accurate."],
+      "verification": ["Review the changed paragraph for accuracy."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    }
+  ]
+}
