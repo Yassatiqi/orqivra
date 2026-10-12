@@ -3,12 +3,11 @@ import {
   closeSync,
   existsSync,
   fsyncSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
-  realpathSync,
   renameSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -16,7 +15,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { currentSnapshot, planHashes, readDag } from './dag.js';
 import { ConcurrentUpdateError, InputOutputError, OrqivraError } from './errors.js';
 import { JsonObject, JsonValue, parseJson, sha256Json } from './json.js';
-import { rejectSymlinkComponents, rejectSymlinkPath, safeJoin, sha256File } from './paths.js';
+import { rejectSymlinkComponents, rejectSymlinkPath, resolveSafeRoot, safeJoin, sha256File } from './paths.js';
 import { isObject, requireValid } from './schema.js';
 
 export const MAX_ATTEMPTS = 5;
@@ -230,15 +229,7 @@ function compareUnicodeScalars(left: string, right: string): number {
 
 export function initializeState(dagPath: string, statePath: string, projectRoot: string): State {
   const dag = readDag(dagPath);
-  rejectSymlinkComponents(projectRoot);
-  let root: string;
-  try {
-    root = realpathSync(projectRoot);
-    if (!statSync(root).isDirectory()) throw new InputOutputError(`Project root is not a directory: ${root}`);
-  } catch (error) {
-    if (error instanceof OrqivraError) throw error;
-    throw new InputOutputError(`Could not resolve project root ${projectRoot}: ${messageOf(error)}`);
-  }
+  const root = resolveSafeRoot(projectRoot);
   const hashes = planHashes(dag, root);
   const initial: JsonObject = {
     schema_version: 1,
@@ -337,15 +328,15 @@ function validateAcceptance(state: State, nodeId: string, node: NodeState): void
 }
 
 export function beginAttempt(path: string, nodeId: string, hypothesis: string): State {
-  const cleaned = hypothesis.trim();
-  if (!cleaned) throw new OrqivraError('An attempt hypothesis is required.');
+  const cleaned = hypothesis.replace(/^[ \t\n\r\f\v]+|[ \t\n\r\f\v]+$/g, '');
+  const normalized = normalizeHypothesis(cleaned);
+  if (!normalized) throw new OrqivraError('An attempt hypothesis is required.');
   return mutateState(path, 'attempt_started', nodeId, { hypothesis: cleaned }, (rawState) => {
     const state = rawState as State;
     const node = requireNode(state, nodeId);
     if (!['ready', 'running'].includes(node.status)) throw new OrqivraError(`Node ${nodeId} must be ready or running before an attempt begins.`);
     if (node.attempts.length >= MAX_ATTEMPTS) throw new OrqivraError(`Attempt limit reached for node ${nodeId}.`);
-    const normalized = caseFold(cleaned).split(/\s+/).filter(Boolean).join(' ');
-    if (node.attempts.some((attempt) => caseFold(attempt.hypothesis).split(/\s+/).filter(Boolean).join(' ') === normalized)) {
+    if (node.attempts.some((attempt) => normalizeHypothesis(attempt.hypothesis) === normalized)) {
       throw new OrqivraError('A correction attempt must use a new hypothesis.');
     }
     const last = node.attempts.at(-1);
@@ -437,8 +428,12 @@ function invalidateAffected(state: State, seeds: Set<string>): Set<string> {
   return affected;
 }
 
-function caseFold(value: string): string {
-  return value.toLocaleLowerCase('und').replace(/[ßẞ]/g, 'ss').replace(/ς/g, 'σ');
+function normalizeHypothesis(value: string): string {
+  return value
+    .replace(/^[ \t\n\r\f\v]+|[ \t\n\r\f\v]+$/g, '')
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[ \t\n\r\f\v]+/g, ' ');
 }
 
 function changedInputPaths(state: State): string[] {
@@ -449,21 +444,30 @@ function changedInputPaths(state: State): string[] {
 }
 
 function collectInputHashes(state: State): Record<string, string> {
-  const root = state.project_root;
+  const root = resolveSafeRoot(state.project_root);
   const paths = [...new Set(Object.values(state.nodes).flatMap((node) => node.inputs))].sort();
   const current = Object.create(null) as Record<string, string>;
   for (const path of paths) {
     const inputPath = safeJoin(root, path, true);
-    if (existsSync(inputPath) && statSync(inputPath).isFile()) current[path] = sha256File(inputPath);
+    let info;
+    try {
+      info = lstatSync(inputPath);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') continue;
+      throw new InputOutputError(`Could not inspect input path ${path}: ${messageOf(error)}`);
+    }
+    if (!info.isFile()) throw new OrqivraError(`Input path is not a regular file: ${path}`);
+    current[path] = sha256File(inputPath);
   }
   return current;
 }
 
 function evidenceStaleReason(state: State, nodeId: string, item: Evidence): string | null {
+  const root = resolveSafeRoot(state.project_root);
   if (item.snapshot !== nodeSnapshot(state, nodeId)) return 'snapshot_changed';
   for (const artifact of item.artifacts) {
     try {
-      if (sha256File(safeJoin(state.project_root, artifact.path)) !== artifact.sha256) return 'artifact_changed';
+      if (sha256File(safeJoin(root, artifact.path)) !== artifact.sha256) return 'artifact_changed';
     } catch {
       return 'artifact_changed';
     }

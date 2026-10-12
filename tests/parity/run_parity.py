@@ -101,6 +101,10 @@ class Harness:
                         f"{case['id']} {runtime} exit mismatch: expected {case['exit_code']}, got {result.returncode}\n"
                         f"{result.stderr}"
                     )
+                if "diagnostic_contains" in case:
+                    diagnostic = f"{result.stdout}\n{result.stderr}".lower()
+                    if case["diagnostic_contains"] not in diagnostic or "traceback" in diagnostic:
+                        raise ParityFailure(f"{case['id']} {runtime} did not return a controlled diagnostic: {diagnostic}")
                 if "json" in case:
                     try:
                         data = json.loads(result.stdout)
@@ -326,7 +330,7 @@ class Harness:
             link_status = "symbolic link created and rejected by both runtimes"
         except (OSError, NotImplementedError) as symlink_error:
             if os.name == "nt":
-                system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+                system_root = Path(os.environ.get("SystemRoot", "C:" + chr(92) + "Windows"))
                 powershell = system_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
                 command = "$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction -Path $env:ORQIVRA_JUNCTION_PATH -Target $env:ORQIVRA_JUNCTION_TARGET | Out-Null"
                 environment = os.environ.copy()
@@ -355,6 +359,84 @@ class Harness:
             self.expect_exit(runtime, ["state", "init", str(dag), "--state", str(state), "--project-root", str(link)], self.expectations["unsafe_path_exit_code"])
         self.record("symlink-or-junction-protection")
         return link_status
+
+    def create_directory_link(self, link: Path, target: Path) -> str | None:
+        try:
+            os.symlink(target, link, target_is_directory=True)
+            return "symbolic link"
+        except (OSError, NotImplementedError) as symlink_error:
+            if os.name != "nt":
+                return None
+            system_root = Path(os.environ.get("SystemRoot", "C:" + chr(92) + "Windows"))
+            powershell = system_root / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+            command = "$ErrorActionPreference = 'Stop'; New-Item -ItemType Junction -Path $env:ORQIVRA_JUNCTION_PATH -Target $env:ORQIVRA_JUNCTION_TARGET | Out-Null"
+            environment = os.environ.copy()
+            environment["ORQIVRA_JUNCTION_PATH"] = str(link)
+            environment["ORQIVRA_JUNCTION_TARGET"] = str(target)
+            result = subprocess.run(
+                [str(powershell), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", command],
+                capture_output=True,
+                text=True,
+                env=environment,
+                check=False,
+            )
+            return "junction" if result.returncode == 0 and link.exists() else None
+
+    def run_path_regressions(self, directory: Path) -> None:
+        dag = self.write_dag(directory, "non-regular-input", [self.make_node("A", [], ["directory-input"], "README.md")])
+        for runtime in ("python", "node"):
+            project = directory / f"non-regular-input-project-{runtime}"
+            project.mkdir()
+            (project / "directory-input").mkdir()
+            state = directory / f"non-regular-input-{runtime}.json"
+            self.expect_exit(
+                runtime,
+                ["state", "init", str(dag), "--state", str(state), "--project-root", str(project)],
+                self.expectations["invalid_case_exit_code"],
+            )
+        self.record("existing-directory-input-rejected-by-both-runtimes")
+
+        normalization_dag = self.write_dag(directory, "hypothesis-normalization", [self.make_node("A", [], [], "README.md")])
+        for runtime in ("python", "node"):
+            state = directory / f"normalization-{runtime}.json"
+            self.successful_json(runtime, ["state", "init", str(normalization_dag), "--state", str(state), "--project-root", str(directory)])
+            args = ["--state", str(state), "A"]
+            self.successful_json(runtime, ["state", "transition", *args, "--to", "ready", "--reason", "normalization setup"])
+            self.successful_json(runtime, ["attempt", "begin", *args, "--hypothesis", "  cafe\u0301   test  "])
+            self.successful_json(runtime, ["state", "transition", *args, "--to", "verifying", "--reason", "negative normalization check"])
+            self.successful_json(runtime, ["attempt", "verify", *args, "--attempt", "1", "--result", "fail", "--summary", "Prepare duplicate hypothesis probe."])
+            self.successful_json(runtime, ["attempt", "diagnose", *args, "--attempt", "1", "--diagnosis", "The duplicate probe is intentional."])
+            self.successful_json(runtime, ["state", "transition", *args, "--to", "fix_required", "--reason", "finish first attempt"])
+            self.successful_json(runtime, ["state", "transition", *args, "--to", "ready", "--reason", "diagnosis recorded"])
+            self.expect_exit(runtime, ["attempt", "begin", *args, "--hypothesis", "CAFÉ\tTEST"], self.expectations["invalid_case_exit_code"])
+            stored = json.loads(state.read_text(encoding="utf-8"))
+            if len(stored["nodes"]["A"]["attempts"]) != 1:
+                raise ParityFailure(f"{runtime} started a duplicate normalized hypothesis")
+        self.record("unicode-hypothesis-normalization-parity")
+
+        replacement_dag = self.write_dag(directory, "root-replacement", [self.make_node("A", [], [], "README.md")])
+        for runtime in ("python", "node"):
+            project = directory / f"root-replacement-original-{runtime}"
+            moved_project = directory / f"root-replacement-target-{runtime}"
+            project.mkdir()
+            state = directory / f"root-replacement-state-{runtime}.json"
+            self.successful_json(runtime, ["state", "init", str(replacement_dag), "--state", str(state), "--project-root", str(project)])
+            self.complete_node(runtime, state, "A", "Accept an empty-input task before replacing its root.")
+            project.rename(moved_project)
+            link_type = self.create_directory_link(project, moved_project)
+            if link_type is None:
+                self.skipped.append({"check": "saved-project-root-replacement", "reason": f"Could not create symlink or junction for {runtime} on {os.name}."})
+                return
+            self.expect_exit(runtime, ["report", "--state", str(state), "--format", "json"], self.expectations["unsafe_path_exit_code"])
+            self.successful_json(
+                runtime,
+                ["resume", "--dag", str(replacement_dag), "--state", str(state), "--project-root", str(moved_project)],
+            )
+            resumed_state = json.loads(state.read_text(encoding="utf-8"))
+            if Path(resumed_state["project_root"]).resolve() != moved_project.resolve():
+                raise ParityFailure(f"{runtime} did not persist the explicitly selected project root during resume")
+            self.successful_json(runtime, ["report", "--state", str(state), "--format", "json"])
+        self.record("saved-project-root-replacement-rejected-and-explicit-root-resume-persisted")
 
     def wait_for_file(self, path: Path, process: subprocess.Popen[str], timeout_seconds: float = 10.0) -> None:
         deadline = time.monotonic() + timeout_seconds
@@ -466,6 +548,7 @@ class Harness:
             self.run_scoped_invalidation_and_readonly_report(directory)
             self.run_installation_interop(directory)
             symlink_status = self.run_unsafe_paths(directory)
+            self.run_path_regressions(directory)
             self.run_lock_interop(directory)
         return {
             "passed_count": len(self.passed),

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -188,9 +190,13 @@ def _changed_input_paths(state: dict[str, Any]) -> list[str]:
 
 
 def _evidence_stale_reason(state: dict[str, Any], node_id: str, item: dict[str, Any]) -> str | None:
+    root_path = Path(state["project_root"])
+    reject_symlink_components(root_path)
+    root = root_path.resolve(strict=True)
+    if not root.is_dir():
+        raise UnsafePathError(f"Selected project root is not a directory: {root_path}")
     if item["snapshot"] != node_snapshot(state, node_id):
         return "snapshot_changed"
-    root = Path(state["project_root"]).resolve(strict=True)
     for artifact in item["artifacts"]:
         try:
             actual = sha256_file(safe_join(root, artifact["path"]))
@@ -293,8 +299,9 @@ def transition(path: Path, node_id: str, target: str, reason: str) -> dict[str, 
 
 
 def begin_attempt(path: Path, node_id: str, hypothesis: str) -> dict[str, Any]:
-    cleaned = hypothesis.strip()
-    if not cleaned:
+    cleaned = hypothesis.strip(" \t\n\r\f\v")
+    normalized = normalize_hypothesis(cleaned)
+    if not normalized:
         raise OrqivraError("An attempt hypothesis is required.")
 
     def apply(state: dict[str, Any]) -> None:
@@ -303,8 +310,7 @@ def begin_attempt(path: Path, node_id: str, hypothesis: str) -> dict[str, Any]:
             raise OrqivraError(f"Node {node_id} must be ready or running before an attempt begins.")
         if len(node["attempts"]) >= MAX_ATTEMPTS:
             raise OrqivraError(f"Attempt limit reached for node {node_id}.")
-        normalized = " ".join(cleaned.casefold().split())
-        prior = {" ".join(item["hypothesis"].casefold().split()) for item in node["attempts"]}
+        prior = {normalize_hypothesis(item["hypothesis"]) for item in node["attempts"]}
         if normalized in prior:
             raise OrqivraError("A correction attempt must use a new hypothesis.")
         if node["attempts"] and node["attempts"][-1]["verification_result"] in {"fail", "interrupted"} and not node["attempts"][-1]["diagnosis"]:
@@ -327,6 +333,14 @@ def begin_attempt(path: Path, node_id: str, hypothesis: str) -> dict[str, Any]:
         node["blocking_reason"] = None
 
     return mutate_state(path, "attempt_started", node_id, {"hypothesis": cleaned}, apply)
+
+
+def normalize_hypothesis(value: str) -> str:
+    """Normalize duplicate-attempt keys using the shared cross-runtime contract."""
+    ascii_whitespace = " \t\n\r\f\v"
+    trimmed = value.strip(ascii_whitespace)
+    lowered = unicodedata.normalize("NFC", trimmed).lower()
+    return re.sub(r"[ \t\n\r\f\v]+", " ", lowered)
 
 
 def _get_attempt(state: dict[str, Any], node_id: str, number: int) -> dict[str, Any]:
@@ -388,7 +402,11 @@ def add_evidence(path: Path, node_id: str, command: str, exit_code: int, artifac
         node = _node(state, node_id)
         if node["status"] not in {"running", "verifying", "accepted"}:
             raise OrqivraError(f"Evidence for {node_id} can be recorded only while it is active or accepted.")
-        root = Path(state["project_root"]).resolve(strict=True)
+        root_path = Path(state["project_root"])
+        reject_symlink_components(root_path)
+        root = root_path.resolve(strict=True)
+        if not root.is_dir():
+            raise UnsafePathError(f"Selected project root is not a directory: {root_path}")
         artifact_records = []
         for raw_path in artifacts:
             path_value = Path(raw_path)
@@ -479,13 +497,19 @@ def _topological_ids(nodes: dict[str, dict[str, Any]]) -> list[str]:
 
 
 def _collect_input_hashes(state: dict[str, Any]) -> dict[str, str]:
-    root = Path(state["project_root"]).resolve(strict=True)
+    root_path = Path(state["project_root"])
+    reject_symlink_components(root_path)
+    root = root_path.resolve(strict=True)
+    if not root.is_dir():
+        raise UnsafePathError(f"Selected project root is not a directory: {root_path}")
     paths = sorted({value for node in state["nodes"].values() for value in node["inputs"]})
     current: dict[str, str] = {}
     for relative in paths:
         input_path = safe_join(root, relative, allow_missing=True)
         if input_path.is_file():
             current[relative] = sha256_file(input_path)
+        elif input_path.exists():
+            raise OrqivraError(f"Input path is not a regular file: {relative}")
     return current
 
 
@@ -521,9 +545,11 @@ def check_evidence(path: Path) -> tuple[dict[str, Any], list[str]]:
 def resume(dag_path: Path, state_path: Path, project_root: Path | None = None) -> tuple[dict[str, Any], list[str]]:
     dag = read_dag(dag_path)
     changed: list[str] = []
-    root = project_root or Path(read_state(state_path)["project_root"])
+    root = project_root if project_root is not None else Path(read_state(state_path)["project_root"])
     reject_symlink_components(root)
     root = root.resolve(strict=True)
+    if not root.is_dir():
+        raise UnsafePathError(f"Selected project root is not a directory: {root}")
     plan_hash, header_hash, input_hashes, definition_hashes = plan_hashes(dag, root, allow_missing_inputs=True)
 
     def apply(state: dict[str, Any]) -> None:
@@ -531,6 +557,7 @@ def resume(dag_path: Path, state_path: Path, project_root: Path | None = None) -
             raise OrqivraError("DAG ID differs from stored state; initialize a new state for a new DAG.")
         if set(state["nodes"]) != set(definition_hashes):
             raise OrqivraError("DAG node IDs changed; use a new DAG ID to preserve attempt history.")
+        state["project_root"] = str(root)
         affected: set[str] = set(state["pending_resume"])
         if state["plan_header_hash"] != header_hash:
             affected.update(state["nodes"])

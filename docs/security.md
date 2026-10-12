@@ -1,10 +1,10 @@
 # Security Model
 
-## Reporting security vulnerabilities
+## Reporting vulnerabilities
 
-This local pre-release tree has no verified public repository or maintainer security contact. Before publishing, maintainers should enable a private vulnerability-reporting route on the public repository or add a verified security contact and response guidance.
+The current checkout has no verified private vulnerability-reporting route or maintainer security contact. This task does not change GitHub settings and does not claim private reporting is enabled. Before public source upload, a maintainer must verify a private reporting route or provide an approved, verified private contact. Do not post exploit details in a public issue.
 
-When the repository is public, use GitHub's private vulnerability-reporting flow if it is enabled. If it is unavailable, open a public issue asking maintainers for a private contact, without posting exploit details. Include the affected ORQIVRA version, runtime and operating system, reproducible steps, and impact; omit credentials, personal data, and third-party private data. See [GitHub's private vulnerability reporting guidance](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/report-privately).
+For an already-public repository, maintainers can configure [GitHub private vulnerability reporting](https://docs.github.com/en/code-security/how-tos/secure-your-repository/reporting-and-fixing-vulnerabilities/configuring-private-vulnerability-reporting-for-a-repository). Keep this as an external publication checklist item until the setting is observed.
 
 ## Data and command boundaries
 
@@ -12,15 +12,15 @@ Project configuration, DAGs, profiles, skill text, logs, and command strings are
 
 ## Paths and state
 
-The CLI rejects absolute or parent-traversal paths where project-relative paths are required. It checks for symbolic links and Windows junctions under project, state, and installation roots. State updates use a sibling exclusive lock, state version, file identity comparison, and atomic replacement. A conflicting or interrupted writer must reload rather than overwrite. A stale lock is not removed automatically; inspect the state path and lock before any manual cleanup.
+The CLIs reject absolute or parent-traversal paths where project-relative paths are required. They validate the original project root before resolving it and reject symbolic links and Windows junctions under project, state, and installation roots. Existing directories and special files cannot be used as file inputs. State updates use an exclusive sibling lock, a state version, file identity comparison, and atomic replacement. A conflict must be reloaded. Stale locks are not removed automatically.
 
 ## Evidence
 
-SHA-256 digests identify input and artifact bytes. They do not establish semantic correctness. Evidence records an observed command string, exit code, active node snapshot, and artifact hashes. Current evidence still requires verification against the acceptance criteria.
+SHA-256 digests identify input and artifact bytes. They do not establish semantic correctness. Evidence records an observed command string, exit code, node snapshot, and artifact hashes. Current evidence still requires review against acceptance criteria.
 
-## Installation ownership
+## Installation ownership and race limits
 
-Install requires an explicit target, defaults to dry-run, and writes only selected skill files and its ownership manifest. It refuses unowned collisions and modified owned files. Uninstall preflights all manifest entries before removing files individually; it never recursively deletes a client skills directory.
+Install requires an explicit target, defaults to dry-run, and writes only selected skill files and its ownership manifest. It refuses unowned collisions and modified owned files. Uninstall removes only unchanged manifest-owned files and never recursively deletes a client skills directory. Immediate checks before replacement and removal reduce race windows, but concurrent filesystem changes can still race with path-based operations; ORQIVRA does not claim a race-proof sandbox.
 
 ## Permissions and limits
 
@@ -28,8 +28,4 @@ Skills describe intended workflow only. Client sandbox, approval, and organizati
 
 ## Third-party components and packaged assets
 
-The Python runtime declares `jsonschema>=4.22,<5` and `PyYAML>=6,<7`. The inspected Python 3.13.2 pipx environment resolved jsonschema 4.26.0 and PyYAML 6.0.3; both distributions reported MIT metadata. That jsonschema environment also installed attrs 26.1.0, jsonschema-specifications 2025.9.1, referencing 0.37.0, and rpds-py 2026.9.1, each reporting MIT metadata. These are installed as separate dependencies, not copied into ORQIVRA's wheel or source archive.
-
-The npm package has no production dependencies. Its lockfile records TypeScript 7.0.2 (Apache-2.0), `@types/node` 24.19.2 (MIT), and development-only transitive packages; `node_modules` is excluded from the npm tarball. The inspected tarball contains the compiled CLI and ORQIVRA-owned schemas, profiles, contracts, skills, adapters, README, and project license. No third-party code or skill text was copied into those assets. External GitHub Actions used by CI remain referenced at their upstream repositories and are not redistributed.
-
-These findings describe the inspected package manifests, tarballs, and resolved dependency metadata for this build. Python dependency ranges may resolve to different versions later; review the exact distributions and their notices when producing another release. This inventory does not make a broader license compatibility determination.
+The Python runtime declares `jsonschema>=4.22,<5` and `PyYAML>=6,<7`. The npm package has no production dependencies; TypeScript and Node type definitions are development dependencies. `node_modules` is excluded from the npm tarball. Recheck exact dependency versions, license notices, and package inventories for every artifact. A historical dependency inventory is retained under local scratch; it is not a claim about future resolutions.

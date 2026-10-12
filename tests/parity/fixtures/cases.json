@@ -23,6 +23,7 @@
       "json": {"valid": true, "kind": "dag", "id": "solo-copy-update", "node_count": 1, "snapshot_inputs": null}
     },
     {"id": "invalid-profile-schema", "operation": "validate_profile", "source": "invalid-profile.json", "exit_code": 2},
+    {"id": "lone-surrogate-profile", "operation": "validate_profile", "source": "lone-surrogate-profile.json", "exit_code": 2, "diagnostic_contains": "surrogate"},
     {"id": "missing-dependency", "operation": "validate_dag", "source": "missing-dependency.json", "exit_code": 2},
     {"id": "cycle", "operation": "validate_dag", "source": "cycle.json", "exit_code": 2},
     {"id": "overlapping-scopes", "operation": "validate_dag", "source": "overlapping-scopes.json", "exit_code": 2}

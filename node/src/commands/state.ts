@@ -1,15 +1,13 @@
-import { realpathSync, statSync } from 'node:fs';
 import { currentSnapshot, nodeDefinitions, planHashes, readDag } from '../core/dag.js';
-import { InputOutputError, OrqivraError } from '../core/errors.js';
-import { rejectSymlinkComponents } from '../core/paths.js';
+import { OrqivraError } from '../core/errors.js';
+import { resolveSafeRoot } from '../core/paths.js';
 import { MAX_ATTEMPTS, State, mutateState, readState } from '../core/state.js';
 
 export function resumeState(dagPath: string, statePath: string, projectRoot?: string): { state: State; affectedNodes: string[] } {
   const dag = readDag(dagPath);
   const stored = projectRoot ? undefined : readState(statePath);
   const selectedRoot = projectRoot ?? stored!.project_root;
-  rejectSymlinkComponents(selectedRoot);
-  const root = resolveRealRoot(selectedRoot);
+  const root = resolveSafeRoot(selectedRoot);
   const hashes = planHashes(dag, root, true);
   const changed: string[] = [];
 
@@ -20,6 +18,7 @@ export function resumeState(dagPath: string, statePath: string, projectRoot?: st
       throw new OrqivraError('DAG node IDs changed; use a new DAG ID to preserve attempt history.');
     }
 
+    current.project_root = root;
     const affected = new Set(current.pending_resume);
     if (current.plan_header_hash !== hashes.headerHash) for (const nodeId of Object.keys(current.nodes)) affected.add(nodeId);
     for (const [nodeId, definitionHash] of Object.entries(hashes.definitionHashes)) {
@@ -130,19 +129,4 @@ function topologicalIds(state: State): string[] {
     for (const dependencies of remaining.values()) for (const nodeId of ready) dependencies.delete(nodeId);
   }
   return result;
-}
-
-function resolveRealRoot(root: string): string {
-  let resolved: string;
-  try {
-    resolved = realpathSync(root);
-  } catch (error) {
-    throw new InputOutputError(`Could not resolve project root ${root}: ${messageOf(error)}`);
-  }
-  if (!statSync(resolved).isDirectory()) throw new InputOutputError(`Project root is not a directory: ${root}`);
-  return resolved;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

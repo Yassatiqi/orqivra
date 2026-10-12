@@ -47,18 +47,22 @@ export function rejectSymlinkComponents(path: string): void {
   }
 }
 
-export function safeJoin(root: string, relativePath: string, allowMissing = false): string {
-  const normalized = safeRelativePath(relativePath);
+export function resolveSafeRoot(root: string): string {
   rejectSymlinkComponents(root);
-  let base: string;
   try {
-    base = realpathSync(root);
-    if (!statSync(base).isDirectory()) throw new UnsafePathError(`Selected root is not a directory: ${root}`);
+    const resolved = realpathSync(root);
+    if (!statSync(resolved).isDirectory()) throw new UnsafePathError(`Selected root is not a directory: ${root}`);
+    return resolved;
   } catch (error) {
     if (error instanceof UnsafePathError) throw error;
     if (isNodeError(error) && error.code === 'ENOENT') throw new InputOutputError(`Selected root does not exist: ${root}`);
     throw new InputOutputError(`Could not inspect selected root ${root}: ${messageOf(error)}`);
   }
+}
+
+export function safeJoin(root: string, relativePath: string, allowMissing = false): string {
+  const normalized = safeRelativePath(relativePath);
+  const base = resolveSafeRoot(root);
   const candidate = resolve(base, ...normalized.split('/'));
   if (!within(candidate, base)) throw new UnsafePathError(`Path escapes selected root: ${relativePath}`);
   let current = base;

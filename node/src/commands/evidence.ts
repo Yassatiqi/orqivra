@@ -1,8 +1,8 @@
-import { existsSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, realpathSync } from 'node:fs';
 import { isAbsolute, relative, sep } from 'node:path';
 import { currentSnapshot } from '../core/dag.js';
 import { OrqivraError, UnsafePathError } from '../core/errors.js';
-import { isWithin, rejectSymlinkComponents, safeJoin, safeRelativePath, sha256File } from '../core/paths.js';
+import { isWithin, rejectSymlinkComponents, resolveSafeRoot, safeJoin, safeRelativePath, sha256File } from '../core/paths.js';
 import { Evidence, NodeState, State, mutateState, nodeSnapshot, utcNow } from '../core/state.js';
 
 export function addEvidence(statePath: string, nodeId: string, command: string, exitCode: number, artifacts: string[] = []): State {
@@ -15,9 +15,10 @@ export function addEvidence(statePath: string, nodeId: string, command: string, 
     if (!['running', 'verifying', 'accepted'].includes(node.status)) {
       throw new OrqivraError(`Evidence for ${nodeId} can be recorded only while it is active or accepted.`);
     }
+    const root = resolveSafeRoot(state.project_root);
     const records = artifacts.map((rawPath) => {
-      const artifactPath = relativeArtifactPath(state.project_root, rawPath);
-      const absolutePath = safeJoin(state.project_root, artifactPath);
+      const artifactPath = relativeArtifactPath(root, rawPath);
+      const absolutePath = safeJoin(root, artifactPath);
       return { path: artifactPath, sha256: sha256File(absolutePath) };
     });
     const evidence: Evidence = {
@@ -68,11 +69,20 @@ export function checkEvidence(statePath: string): { state: State; staleEvidence:
 }
 
 export function collectInputHashes(state: State): Record<string, string> {
+  const root = resolveSafeRoot(state.project_root);
   const result = Object.create(null) as Record<string, string>;
   const inputs = [...new Set(Object.values(state.nodes).flatMap((node) => node.inputs))].sort();
   for (const input of inputs) {
-    const path = safeJoin(state.project_root, input, true);
-    if (existsSync(path) && statSync(path).isFile()) result[input] = sha256File(path);
+    const path = safeJoin(root, input, true);
+    let info;
+    try {
+      info = lstatSync(path);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') continue;
+      throw new OrqivraError(`Could not inspect input path ${input}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!info.isFile()) throw new OrqivraError(`Input path is not a regular file: ${input}`);
+    result[input] = sha256File(path);
   }
   return result;
 }
@@ -85,10 +95,11 @@ export function changedInputPaths(state: State): string[] {
 }
 
 export function evidenceStaleReason(state: State, nodeId: string, item: Evidence): string | null {
+  const root = resolveSafeRoot(state.project_root);
   if (item.snapshot !== nodeSnapshot(state, nodeId)) return 'snapshot_changed';
   for (const artifact of item.artifacts) {
     try {
-      if (sha256File(safeJoin(state.project_root, artifact.path)) !== artifact.sha256) return 'artifact_changed';
+      if (sha256File(safeJoin(root, artifact.path)) !== artifact.sha256) return 'artifact_changed';
     } catch {
       return 'artifact_changed';
     }

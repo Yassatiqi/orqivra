@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { addEvidence, checkEvidence } from '../../dist/commands/evidence.js';
+import { addEvidence, checkEvidence, collectInputHashes, evidenceStaleReason } from '../../dist/commands/evidence.js';
 import { createReport, markdownReport } from '../../dist/commands/report.js';
 import { resumeState } from '../../dist/commands/state.js';
 import { beginAttempt, diagnose, initializeState, recordVerification, transition } from '../../dist/core/state.js';
@@ -134,6 +134,36 @@ test('resume preserves counters and requires diagnosis after an interrupted atte
     const current = JSON.parse(readFileSync(scenario.statePath, 'utf8'));
     assert.equal(current.nodes.A.attempts.length, 2);
     assert.equal(current.nodes.A.attempts[0].verification_result, 'interrupted');
+  } finally {
+    rmSync(scenario.directory, { recursive: true, force: true });
+  }
+});
+
+test('saved project roots replaced by a symlink or junction are rejected even with no inputs or artifacts', () => {
+  const scenario = createScenario('empty-root replacement');
+  const statePath = resolve(scenario.directory, 'external-state.json');
+  try {
+    const dag = JSON.parse(readFileSync(scenario.dagPath, 'utf8'));
+    for (const node of dag.nodes) node.inputs = [];
+    writeFileSync(scenario.dagPath, `${JSON.stringify(dag, null, 2)}\n`);
+    initializeState(scenario.dagPath, statePath, scenario.project);
+    transition(statePath, 'A', 'ready');
+    transition(statePath, 'A', 'running');
+
+    const movedRoot = `${scenario.project}-real`;
+    renameSync(scenario.project, movedRoot);
+    symlinkSync(movedRoot, scenario.project, process.platform === 'win32' ? 'junction' : 'dir');
+    const state = JSON.parse(readFileSync(statePath, 'utf8'));
+
+    assert.throws(() => collectInputHashes(state), /symlink|junction/i);
+    assert.throws(() => evidenceStaleReason(state, 'A', { snapshot: 'stale', artifacts: [] }), /symlink|junction/i);
+    assert.throws(() => checkEvidence(statePath), /symlink|junction/i);
+    assert.throws(() => createReport(statePath), /symlink|junction/i);
+    assert.throws(() => addEvidence(statePath, 'A', 'root guard test', 0), /symlink|junction/i);
+    assert.throws(() => resumeState(scenario.dagPath, statePath), /symlink|junction/i);
+
+    const resumed = resumeState(scenario.dagPath, statePath, movedRoot);
+    assert.equal(resumed.state.project_root, resolve(movedRoot));
   } finally {
     rmSync(scenario.directory, { recursive: true, force: true });
   }

@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
-dependencies = ["jsonschema>=4.22,<5", "PyYAML>=6,<7"]
+keywords = ["workflow", "orchestration", "verification", "recovery", "cli"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",
@@ -20,6 +20,8 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
 ]
+urls = { Homepage = "https://github.com/Yassatiqi/orqivra", Documentation = "https://github.com/Yassatiqi/orqivra/tree/main/docs", Repository = "https://github.com/Yassatiqi/orqivra", Issues = "https://github.com/Yassatiqi/orqivra/issues" }
+dependencies = ["jsonschema>=4.22,<5", "PyYAML>=6,<7"]
 
 [project.scripts]
 orqivra = "orqivra.cli:main"

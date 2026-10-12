@@ -2,6 +2,22 @@
   "name": "orqivra",
   "version": "0.2.0",
   "description": "A local, provider-independent engineering workflow CLI for AI agents",
+  "homepage": "https://github.com/Yassatiqi/orqivra#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Yassatiqi/orqivra.git",
+    "directory": "node"
+  },
+  "bugs": {
+    "url": "https://github.com/Yassatiqi/orqivra/issues"
+  },
+  "keywords": [
+    "workflow",
+    "orchestration",
+    "verification",
+    "recovery",
+    "cli"
+  ],
   "type": "module",
   "main": "./dist/cli.js",
   "bin": {

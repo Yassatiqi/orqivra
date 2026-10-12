@@ -2,6 +2,10 @@
 
 ## 0.2.0 - 2026-10-12
 
+- Corrected cross-runtime root-boundary checks, regular-file input handling, and strict JSON Unicode validation.
+- Aligned hypothesis normalization and installation manifest validation; immediate ownership checks reduce but do not eliminate filesystem race windows.
+- Documented the Node validator's supported schema subset, independent runtime guarantees, client qualification limits, and truthful external publication checklist.
+- Added runnable disposable quickstarts and preserved local release history outside the public documentation tree.
 - Added an independent TypeScript CLI and installable npm distribution alongside the Python CLI.
 - Added strict shared JSON parsing, canonical JSON hashing, interoperable DAG/state/evidence formats, and cross-runtime state support.
 - Moved shared skill procedures to canonical sources and added validated client adapters with generated edition assets.

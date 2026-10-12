@@ -30,7 +30,7 @@ from .paths import safe_join, safe_relative_path
 
 
 def _emit(data: Any) -> None:
-    print(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=False))
+    print(json.dumps(data, indent=2, sort_keys=True, ensure_ascii=True))
 
 
 def _add_state_option(parser: argparse.ArgumentParser) -> None:

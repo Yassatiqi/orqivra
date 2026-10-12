@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import test from 'node:test';
 import { readJson } from '../../dist/core/json.js';
 import { validateData } from '../../dist/core/schema.js';
@@ -38,4 +39,23 @@ test('the schema engine validates representative instances for every shipped sch
 test('schema validation reports invalid profiles and path traversal fields', () => {
   assert.notDeepEqual(validateData(fixture('invalid-profile.json'), 'profile.schema.json'), []);
   assert.notDeepEqual(validateData({ ...fixture('valid-project.json'), inputs: ['../escape'] }, 'project.schema.json'), []);
+});
+
+test('schema engine rejects unsupported keywords instead of silently ignoring them', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'orqivra unsupported schema keyword '));
+  const priorDataDir = process.env.ORQIVRA_DATA_DIR;
+  try {
+    for (const name of ['schemas', 'profiles', 'skills', 'editions']) mkdirSync(resolve(directory, name));
+    writeFileSync(resolve(directory, 'schemas', 'unsupported.schema.json'), JSON.stringify({
+      type: 'object',
+      properties: { name: { oneOf: [{ type: 'string' }, { type: 'number' }] } },
+    }));
+    process.env.ORQIVRA_DATA_DIR = directory;
+
+    assert.throws(() => validateData({ name: 'ORQIVRA' }, 'unsupported.schema.json'), /Unsupported JSON Schema keyword 'oneOf'/);
+  } finally {
+    if (priorDataDir === undefined) delete process.env.ORQIVRA_DATA_DIR;
+    else process.env.ORQIVRA_DATA_DIR = priorDataDir;
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

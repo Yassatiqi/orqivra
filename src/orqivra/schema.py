@@ -48,15 +48,29 @@ def load_json(path: Path) -> Any:
     def reject_constant(value: str) -> Any:
         raise ValueError(f"Non-finite JSON numbers are not supported: {value}")
 
+    def reject_lone_surrogates(value: Any, location: str = "$") -> None:
+        if isinstance(value, str):
+            if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+                raise ValueError(f"Lone surrogate code point is not allowed at {location}.")
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                reject_lone_surrogates(item, f"{location}/{index}")
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                reject_lone_surrogates(key, f"{location}/<key>")
+                reject_lone_surrogates(item, f"{location}/{key}")
+
     try:
         with path.open("r", encoding="utf-8") as stream:
-            return json.load(
+            value = json.load(
                 stream,
                 object_pairs_hook=object_without_duplicate_keys,
                 parse_int=safe_integer,
                 parse_float=reject_fraction,
                 parse_constant=reject_constant,
             )
+        reject_lone_surrogates(value)
+        return value
     except OSError as exc:
         raise InputOutputError(f"Could not read {path}: {exc}") from exc
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:

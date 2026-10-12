@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import fs, { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, resolve } from 'node:path';
 import test from 'node:test';
@@ -81,6 +82,75 @@ test('installer refuses unowned collisions and modified destinations', () => {
     writeFileSync(collision, original);
     assert.throws(() => installSkills('codex', target, ['orqivra-recover'], true), /Unowned destination/);
     assert.equal(readFileSync(collision, 'utf8'), original);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('install rechecks the ownership manifest immediately before replacing a file', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'orqivra install manifest race '));
+  const target = resolve(directory, 'skills');
+  try {
+    installSkills('codex', target, ['orqivra-orchestrate'], true);
+    const manifestPath = resolve(target, '.orqivra-manifest.json');
+    const installedPath = resolve(target, 'orqivra-orchestrate', 'SKILL.md');
+    const originalFile = readFileSync(installedPath);
+    const originalManifest = readFileSync(manifestPath);
+    const concurrentManifest = Buffer.concat([originalManifest, Buffer.from('\nConcurrent edit.\n')]);
+    const originalFsync = fs.fsyncSync;
+    let changed = false;
+    fs.fsyncSync = (descriptor) => {
+      if (!changed) {
+        changed = true;
+        writeFileSync(manifestPath, concurrentManifest);
+      }
+      return originalFsync(descriptor);
+    };
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => installSkills('codex', target, ['orqivra-orchestrate'], true), /manifest changed during update/);
+    } finally {
+      fs.fsyncSync = originalFsync;
+      syncBuiltinESMExports();
+    }
+    assert.ok(changed);
+    assert.deepEqual(readFileSync(installedPath), originalFile);
+    assert.deepEqual(readFileSync(manifestPath), concurrentManifest);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('uninstall rechecks the ownership manifest before each owned-file removal', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'orqivra uninstall manifest race '));
+  const target = resolve(directory, 'skills');
+  try {
+    installSkills('codex', target, ['orqivra-orchestrate'], true);
+    const manifestPath = resolve(target, '.orqivra-manifest.json');
+    const installedPath = resolve(target, 'orqivra-orchestrate', 'SKILL.md');
+    const originalFile = readFileSync(installedPath);
+    const originalManifest = readFileSync(manifestPath);
+    const concurrentManifest = Buffer.concat([originalManifest, Buffer.from('\nConcurrent edit.\n')]);
+    const originalRead = fs.readFileSync;
+    let ownedFileReads = 0;
+    fs.readFileSync = function (path, ...arguments_) {
+      const result = originalRead.call(this, path, ...arguments_);
+      if (String(path) === installedPath) {
+        ownedFileReads += 1;
+        if (ownedFileReads === 2) writeFileSync(manifestPath, concurrentManifest);
+      }
+      return result;
+    };
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => uninstallSkills(target, true), /manifest changed during uninstall/);
+    } finally {
+      fs.readFileSync = originalRead;
+      syncBuiltinESMExports();
+    }
+    assert.equal(ownedFileReads, 2);
+    assert.deepEqual(readFileSync(installedPath), originalFile);
+    assert.deepEqual(readFileSync(manifestPath), concurrentManifest);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

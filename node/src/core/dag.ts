@@ -1,9 +1,8 @@
-import { existsSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { lstatSync } from 'node:fs';
 import { InputOutputError, OrqivraError } from './errors.js';
 import { JsonObject, readJson, sha256Json } from './json.js';
 import { isObject, requireValid } from './schema.js';
-import { rejectSymlinkComponents, safeJoin, safeRelativePath, sha256File } from './paths.js';
+import { resolveSafeRoot, safeJoin, safeRelativePath, sha256File } from './paths.js';
 
 export type DagNode = JsonObject & {
   id: string;
@@ -86,15 +85,7 @@ export function planHashes(
   projectRoot: string,
   allowMissingInputs = false,
 ): { planHash: string; headerHash: string; inputHashes: Record<string, string>; definitionHashes: Record<string, string> } {
-  rejectSymlinkComponents(projectRoot);
-  let root: string;
-  try {
-    root = resolve(projectRoot);
-    if (!statSync(root).isDirectory()) throw new InputOutputError(`Project root is not a directory: ${root}`);
-  } catch (error) {
-    if (error instanceof InputOutputError) throw error;
-    throw new InputOutputError(`Could not resolve project root ${projectRoot}: ${messageOf(error)}`);
-  }
+  const root = resolveSafeRoot(projectRoot);
 
   const header = Object.create(null) as JsonObject;
   for (const [key, value] of Object.entries(dag)) if (key !== 'nodes') header[key] = value;
@@ -103,9 +94,19 @@ export function planHashes(
   const inputPaths = [...new Set(dag.nodes.flatMap((node) => node.inputs))].sort();
   const inputHashes: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const input of inputPaths) {
-    const path = safeJoin(root, input, allowMissingInputs);
-    if (existsSync(path) && statSync(path).isFile()) inputHashes[input] = sha256File(path);
-    else if (!allowMissingInputs && !existsSync(path)) throw new OrqivraError(`Required input file does not exist: ${input}`);
+    const path = safeJoin(root, input, true);
+    let info;
+    try {
+      info = lstatSync(path);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        if (!allowMissingInputs) throw new OrqivraError(`Required input file does not exist: ${input}`);
+        continue;
+      }
+      throw new InputOutputError(`Could not inspect input path ${input}: ${messageOf(error)}`);
+    }
+    if (!info.isFile()) throw new OrqivraError(`Input path is not a regular file: ${input}`);
+    inputHashes[input] = sha256File(path);
   }
 
   const definitionHashes: Record<string, string> = Object.create(null) as Record<string, string>;

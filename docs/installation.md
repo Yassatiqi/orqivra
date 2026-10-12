@@ -2,92 +2,55 @@
 
 ## Choose one CLI distribution
 
-Both packages expose the same `orqivra` command and full CLI. Use one distribution in a shell environment to avoid PATH ambiguity.
+Both distributions expose the full `orqivra` CLI. Use one distribution in a shell environment to avoid PATH ambiguity.
 
 | Distribution | Runtime | Declared minimum |
-|---|---|---|
+|---|---|---:|
 | npm | Node.js | 24 |
 | pipx | Python | 3.11 |
 
-### Install a local npm artifact
+The npm implementation does not need Python. The Python implementation does not need Node.js.
 
-Install the v0.2.0 tarball you received or built:
+## Install a local artifact
+
+Install the npm tarball:
 
 ```powershell
-npm install --global C:\path\to\orqivra-0.2.0.tgz
+npm.cmd install --global C:\path\to\orqivra-0.2.0.tgz
 orqivra --help
 ```
 
-On Unix, use the path to the same tarball, for example `/path/to/orqivra-0.2.0.tgz`. You can also run the installed package from a project with `npm exec -- orqivra --help` or `npx --no-install orqivra --help` when that project has the package installed.
-
-### Install a local Python artifact
-
-Install the built wheel with pipx:
+Install the Python wheel with pipx:
 
 ```powershell
 pipx install C:\path\to\orqivra-0.2.0-py3-none-any.whl
 orqivra --help
 ```
 
-The source archive and a local source checkout are also supported:
+The Python source archive and a local source checkout can also be installed with pipx. These are local artifact commands; they do not publish packages or verify publisher account eligibility.
+
+## Build local release artifacts
+
+From a source checkout, build npm using Node and npm only:
 
 ```powershell
-pipx install C:\path\to\orqivra-0.2.0.tar.gz
-pipx install C:\path\to\orqivra-source
+Push-Location node
+npm.cmd ci
+npm.cmd run build
+npm.cmd pack --pack-destination ..\scratch\packages
+Pop-Location
 ```
 
-### Build local release artifacts
+Build the Python wheel and source distribution using Python only:
 
-From a source checkout, build the npm tarball:
-
-```text
-cd node
-npm ci
-npm run build
-node -e "require('node:fs').mkdirSync('../dist',{recursive:true})"
-npm pack --pack-destination ../dist
-```
-
-In Windows PowerShell, use `npm.cmd` if your execution policy blocks the `npm.ps1` shim.
-
-Build the Python wheel and sdist:
-
-```text
+```powershell
 python -m pip install build
-python -m build --outdir dist
+python -m build --outdir scratch/packages
 ```
 
-The commands above create local artifacts. They do not publish packages.
+The generated Node `dist/` directory is excluded from Git but is required in the npm tarball. Python schemas, skills, profiles, adapters, and contracts are included in Python distributions. Always inspect both inventories and test installation outside the checkout.
 
-### After a public registry release
-
-Use registry commands only after the requested version is visible in the registry:
-
-```text
-npm install --global orqivra@0.2.0
-pipx install orqivra==0.2.0
-```
-
-These commands are conditional examples, not currently available installation routes for this local release. Package publication is outside the v0.2.0 preparation task.
-
-## Identify the active executable
-
-Both distributions install an executable named `orqivra`. On Windows PowerShell, inspect all matches and their source paths:
-
-```powershell
-Get-Command orqivra -All
-```
-
-On Unix-like shells:
-
-```sh
-command -v orqivra
-type -a orqivra
-```
-
-Prefer installing only one distribution in a given environment. For Python, `python -m orqivra.cli --help` explicitly runs the package associated with that interpreter.
-
-## Install selected client skills
+## Install client skills
 
 CLI installation and skill installation are separate. The `--target` path is mandatory and must be the exact skills directory. Dry-run is the default. Review the listed paths before using `--apply`.
 
@@ -96,26 +59,21 @@ orqivra install --edition codex --target .agents/skills --skill orqivra-orchestr
 orqivra install --edition codex --target .agents/skills --skill orqivra-orchestrate --apply
 ```
 
-Targets by client:
-
 | Edition | Repository skills path |
 |---|---|
 | Codex | `.agents/skills` |
 | Claude Code | `.claude/skills` |
 | Gemini CLI | `.gemini/skills` or `.agents/skills` |
 
-To install all four skills, omit `--skill`. Repeat `--skill` to select multiple skills. Each skill contains its full instructions. The installer writes an ORQIVRA manifest in the explicit target, refuses unowned collisions, and does not edit global client instructions or user-profile files.
+The canonical source tree contains shared skill bodies, not pre-created native directories. `orqivra build` or `orqivra install` generates the selected client layout. The installer writes only selected skills and its ORQIVRA ownership manifest. It refuses unowned collisions and modified owned files. It does not edit global client instructions or infer a home directory.
 
-## Verify, remove, and build bundles
+## Troubleshooting
 
-```text
-orqivra verify-install --target .agents/skills
-orqivra uninstall --target .agents/skills
-orqivra uninstall --target .agents/skills --apply
-orqivra build --edition codex --output dist/codex
-orqivra build --edition all --output dist/orqivra-v0.2.0
-```
+- **PowerShell blocks `npm.ps1`:** use `npm.cmd` as shown above; do not change the execution policy for this project.
+- **The wrong `orqivra` runs:** use `Get-Command orqivra -All` in PowerShell or `type -a orqivra` in POSIX shells, then remove PATH ambiguity or use the intended environment's executable directly.
+- **The pipx command is missing from PATH:** run `pipx ensurepath` in the appropriate shell and open a new shell, or invoke the executable by its reported full path.
+- **A skill is not discovered:** verify the exact target and manifest with `orqivra verify-install`, then follow the client's documented workspace trust and skill reload steps. Installing a skill does not activate a model or grant permissions.
 
-Uninstall is dry-run by default. It removes only files listed in the ORQIVRA manifest whose content still matches the recorded hash. Modified and unrelated files are preserved. Each bundle includes the selected native skill layout, profile, adapter, shared contracts, schemas, and license.
+## After a public registry release
 
-Installing a skill does not activate a model or establish compatibility with the client runtime. See the [qualification matrix](compatibility.md).
+Use `npm install --global orqivra@0.2.0` or `pipx install orqivra==0.2.0` only after the version is actually published and visible. Publication is a separate authorized action. Registry 404 responses do not reserve a package name.

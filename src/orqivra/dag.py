@@ -116,6 +116,8 @@ def plan_hashes(
         input_file = _safe_input(project_root, path, allow_missing=allow_missing_inputs)
         if input_file.is_file():
             input_hashes[path] = sha256_file(input_file)
+        elif input_file.exists():
+            raise OrqivraError(f"Input path is not a regular file: {path}")
         elif not allow_missing_inputs:
             raise OrqivraError(f"Required input file does not exist: {path}")
     definition_hashes: dict[str, str] = {}

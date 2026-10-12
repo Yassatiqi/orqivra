@@ -69,3 +69,28 @@ test('state lock conflict does not overwrite the existing lock', () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test('attempt hypotheses use ASCII whitespace, NFC, and locale-independent lowercase for duplicate checks', () => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'orqivra hypothesis normalization '));
+  try {
+    const project = resolve(directory, 'project');
+    mkdirSync(project);
+    const dagPath = resolve(directory, 'plan.json');
+    const statePath = resolve(project, '.orqivra', 'state.json');
+    writeFileSync(dagPath, `${JSON.stringify(testDag(), null, 2)}\n`);
+
+    initializeState(dagPath, statePath, project);
+    transition(statePath, 'A', 'ready');
+    beginAttempt(statePath, 'A', ' \t\u00c5   focused  check \v');
+    transition(statePath, 'A', 'verifying');
+    recordVerification(statePath, 'A', 1, 'fail', 'First attempt failed for this duplicate check.');
+    diagnose(statePath, 'A', 1, 'The first attempt used the composed form.');
+    transition(statePath, 'A', 'fix_required');
+    transition(statePath, 'A', 'ready');
+
+    assert.throws(() => beginAttempt(statePath, 'A', 'A\u030A focused\tcheck'), /new hypothesis/);
+    assert.equal(readState(statePath).nodes.A.attempts.length, 1);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

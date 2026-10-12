@@ -1,10 +1,40 @@
+# Local plans, state, reports, packages, and preserved session history
+/scratch/
+/tmp/
+/.artifacts/
+
+# Python environments, caches, and generated metadata
 .venv/
-.artifacts/
+.venv*/
+venv/
 __pycache__/
 *.py[cod]
-build/
-dist/
 *.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
-*.lock
+.coverage.*
+htmlcov/
+
+# Node dependencies, outputs, coverage, and interrupted staging
+node_modules/
+/node/dist/
+/node/.orqivra-build-*/
+/node/package-lock.json.tmp
+coverage/
+*.tsbuildinfo
+
+# Conventional build output
+/build/
+/dist/
+
+# Local configuration and operating-system/editor debris
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo

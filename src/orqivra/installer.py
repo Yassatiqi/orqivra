@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -264,7 +265,14 @@ def _read_manifest(target: Path) -> dict[str, Any]:
     if not manifest_path.is_file():
         raise OrqivraError(f"No ORQIVRA ownership manifest found under {target}.")
     manifest = load_json(manifest_path)
-    if manifest.get("format_version") != 1 or manifest.get("owner") != "ORQIVRA" or manifest.get("edition") not in EDITIONS:
+    if (
+        not isinstance(manifest, dict)
+        or type(manifest.get("format_version")) is not int
+        or manifest["format_version"] != 1
+        or manifest.get("owner") != "ORQIVRA"
+        or not isinstance(manifest.get("edition"), str)
+        or manifest["edition"] not in EDITIONS
+    ):
         raise OrqivraError("ORQIVRA ownership manifest is invalid or unsupported.")
     files = manifest.get("files")
     if not isinstance(files, dict):
@@ -273,7 +281,7 @@ def _read_manifest(target: Path) -> dict[str, Any]:
         normalized = safe_relative_path(relative)
         if normalized != relative or normalized.split("/", 1)[0] not in SKILL_NAMES:
             raise UnsafePathError(f"Manifest contains an invalid owned path: {relative}")
-        if not isinstance(digest, str) or len(digest) != 64:
+        if not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
             raise OrqivraError(f"Manifest contains an invalid file digest: {relative}")
     return manifest
 
@@ -296,6 +304,48 @@ def _safe_destination(root: Path, relative: str) -> Path:
     return current
 
 
+def _assert_install_destination_state(target: Path, relative: str, expected_hash: str | None) -> Path:
+    """Recheck a destination's ownership immediately before replacing it.
+
+    These metadata and digest checks reduce race windows; they cannot make a
+    path-based filesystem operation race-proof against a concurrent writer.
+    """
+    reject_symlink_components(target)
+    destination = _safe_destination(target, relative)
+    reject_symlink_components(destination)
+    reject_symlink_path(destination)
+    if expected_hash is None:
+        if destination.exists():
+            raise OrqivraError(f"An unowned destination appeared during installation: {destination}")
+    else:
+        try:
+            actual = sha256_file(destination)
+        except OrqivraError as exc:
+            raise OrqivraError(f"An installed destination changed during installation: {relative}") from exc
+        if actual != expected_hash:
+            raise OrqivraError(f"An installed destination was modified during installation: {relative}")
+    return destination
+
+
+def _assert_manifest_state(target: Path, expected_hash: str | None) -> Path:
+    """Ensure manifest ownership is unchanged immediately before replacement/removal."""
+    reject_symlink_components(target)
+    manifest_path = target / MANIFEST_NAME
+    reject_symlink_components(manifest_path)
+    reject_symlink_path(manifest_path)
+    if expected_hash is None:
+        if manifest_path.exists():
+            raise OrqivraError("An installation manifest appeared during the operation; refusing to overwrite it.")
+    else:
+        try:
+            actual = sha256_file(manifest_path)
+        except OrqivraError as exc:
+            raise OrqivraError("The ORQIVRA installation manifest changed during the operation.") from exc
+        if actual != expected_hash:
+            raise OrqivraError("The ORQIVRA installation manifest changed during the operation.")
+    return manifest_path
+
+
 def install(edition: str, target: Path, selected: list[str] | None = None, *, apply: bool = False) -> dict[str, Any]:
     rendered, validation = render_edition_skills(edition)
     selected_names = sorted(set(selected or SKILL_NAMES))
@@ -305,8 +355,10 @@ def install(edition: str, target: Path, selected: list[str] | None = None, *, ap
     target = _existing_target(target)
     manifest_path = target / MANIFEST_NAME
     current: dict[str, Any] | None = None
+    manifest_hash: str | None = None
     if target.exists() and manifest_path.exists():
         current = _read_manifest(target)
+        manifest_hash = sha256_file(manifest_path)
         if current["edition"] != edition:
             raise OrqivraError("The target already belongs to another ORQIVRA edition.")
         for relative, old_hash in current["files"].items():
@@ -354,12 +406,12 @@ def install(edition: str, target: Path, selected: list[str] | None = None, *, ap
             reject_symlink_path(temp)
             if temp.exists():
                 raise OrqivraError(f"Temporary installation path already exists: {temp}")
-            pending.append((relative, destination, temp, payloads[relative]))
+            pending.append((relative, destination, temp, payloads[relative], current["files"].get(relative) if current else None))
         manifest_temp = manifest_path.with_name(manifest_path.name + ".orqivra-tmp")
         reject_symlink_path(manifest_temp)
         if manifest_temp.exists():
             raise OrqivraError(f"Temporary installation path already exists: {manifest_temp}")
-        for relative, destination, temp, payload in pending:
+        for relative, destination, temp, payload, expected_hash in pending:
             destination.parent.mkdir(parents=True, exist_ok=True)
             reject_symlink_components(destination)
             created_temp = False
@@ -369,15 +421,20 @@ def install(edition: str, target: Path, selected: list[str] | None = None, *, ap
                     stream.write(payload)
                     stream.flush()
                     os.fsync(stream.fileno())
+                reject_symlink_components(temp)
+                reject_symlink_path(temp)
+                if sha256_file(temp) != sha256_bytes(payload):
+                    raise OrqivraError(f"Staged installation file changed before replacement: {relative}")
+                destination = _assert_install_destination_state(target, relative, expected_hash)
                 os.replace(temp, destination)
             finally:
                 if created_temp:
                     temp.unlink(missing_ok=True)
-        _write_manifest(target, manifest)
+        _write_manifest(target, manifest, expected_hash=manifest_hash)
     return {"edition": edition, "target": str(target), "dry_run": not apply, "files": sorted(planned), "skill_count": len(validation["skills"])}
 
 
-def _write_manifest(target: Path, manifest: dict[str, Any]) -> None:
+def _write_manifest(target: Path, manifest: dict[str, Any], *, expected_hash: str | None = None) -> None:
     path = target / MANIFEST_NAME
     reject_symlink_path(path)
     temp = path.with_name(path.name + ".orqivra-tmp")
@@ -385,12 +442,18 @@ def _write_manifest(target: Path, manifest: dict[str, Any]) -> None:
     if temp.exists():
         raise OrqivraError(f"Temporary installation path already exists: {temp}")
     created_temp = False
+    payload = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
     try:
         with temp.open("x", encoding="utf-8", newline="\n") as stream:
             created_temp = True
-            stream.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+            stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
+        reject_symlink_components(temp)
+        reject_symlink_path(temp)
+        if sha256_file(temp) != sha256_bytes(payload.encode("utf-8")):
+            raise OrqivraError(f"Staged installation manifest changed before replacement: {temp}")
+        _assert_manifest_state(target, expected_hash)
         os.replace(temp, path)
     finally:
         if created_temp:
@@ -416,12 +479,20 @@ def verify_install(target: Path) -> dict[str, Any]:
 def uninstall(target: Path, *, apply: bool = False) -> dict[str, Any]:
     target = _existing_target(target)
     manifest = _read_manifest(target)
+    manifest_hash = sha256_file(target / MANIFEST_NAME)
     verified = verify_install(target)
     files = sorted(manifest["files"], reverse=True)
     if apply:
         for relative in files:
-            safe_join(target, relative).unlink()
-        (target / MANIFEST_NAME).unlink()
+            _assert_manifest_state(target, manifest_hash)
+            destination = safe_join(target, relative)
+            reject_symlink_components(destination)
+            reject_symlink_path(destination)
+            if sha256_file(destination) != manifest["files"][relative]:
+                raise OrqivraError(f"An installed file was modified; refusing to remove it: {relative}")
+            destination.unlink()
+        manifest_path = _assert_manifest_state(target, manifest_hash)
+        manifest_path.unlink()
         directories = sorted({(target / Path(*relative.split("/"))).parent for relative in files}, key=lambda path: len(path.parts), reverse=True)
         for directory in directories:
             try:

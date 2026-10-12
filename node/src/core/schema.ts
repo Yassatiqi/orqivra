@@ -5,9 +5,18 @@ import { JsonObject, JsonValue, readJson } from './json.js';
 
 type Schema = JsonObject;
 
+export const SUPPORTED_SCHEMA_KEYWORDS = [
+  '$defs', '$id', '$ref', '$schema',
+  'additionalProperties', 'const', 'description', 'enum', 'format', 'items',
+  'maxItems', 'maxLength', 'maximum', 'minItems', 'minLength', 'minProperties', 'minimum',
+  'not', 'pattern', 'properties', 'required', 'title', 'type', 'uniqueItems',
+] as const;
+const SUPPORTED_SCHEMA_KEYWORD_SET = new Set<string>(SUPPORTED_SCHEMA_KEYWORDS);
+
 export function validateData(data: JsonValue, schemaName: string): string[] {
   const schemaPath = resolve(assetRoot(), 'schemas', schemaName);
   const schema = asObject(readJson(schemaPath), `Schema ${schemaName}`);
+  assertSupportedSchema(schema, schemaPath, '', new Set());
   const errors: string[] = [];
   validateAt(data, schema, schemaPath, '$', errors, new Set());
   return errors.sort();
@@ -38,7 +47,6 @@ function validateAt(
     refStack.add(refKey);
     validateAt(value, resolved.schema, resolved.path, location, errors, refStack);
     refStack.delete(refKey);
-    return;
   }
 
   if (schema.type !== undefined && !matchesType(value, schema.type)) {
@@ -91,6 +99,60 @@ function validateAt(
     const nestedErrors: string[] = [];
     validateAt(value, schema.not, schemaPath, location, nestedErrors, refStack);
     if (nestedErrors.length === 0) errors.push(`${location}: value matches a forbidden schema.`);
+  }
+}
+
+function assertSupportedSchema(schema: Schema, schemaPath: string, pointer: string, visited: Set<string>): void {
+  const schemaKey = `${schemaPath}#${pointer}`;
+  if (visited.has(schemaKey)) return;
+  visited.add(schemaKey);
+
+  for (const keyword of Object.keys(schema)) {
+    if (!SUPPORTED_SCHEMA_KEYWORD_SET.has(keyword)) {
+      throw new OrqivraError(`Unsupported JSON Schema keyword '${keyword}' at ${schemaKey}.`);
+    }
+  }
+  if (schema.$ref !== undefined) {
+    if (typeof schema.$ref !== 'string') throw new OrqivraError(`Schema $ref must be a string at ${schemaKey}.`);
+    const resolved = resolveRef(schema.$ref, schemaPath);
+    assertSupportedSchema(resolved.schema, resolved.path, resolved.pointer, visited);
+  }
+  for (const keyword of ['$defs', 'properties'] as const) {
+    const value = schema[keyword];
+    if (value === undefined) continue;
+    if (!isObject(value)) throw new OrqivraError(`Schema ${keyword} must be an object at ${schemaKey}.`);
+    for (const [name, child] of Object.entries(value)) {
+      if (!isObject(child)) throw new OrqivraError(`Schema entry '${name}' in ${keyword} must be an object at ${schemaKey}.`);
+      const escaped = name.replaceAll('~', '~0').replaceAll('/', '~1');
+      assertSupportedSchema(child, schemaPath, `${pointer}/${keyword}/${escaped}`, visited);
+    }
+  }
+  for (const keyword of ['items', 'not'] as const) {
+    const value = schema[keyword];
+    if (value === undefined) continue;
+    if (!isObject(value)) throw new OrqivraError(`Schema ${keyword} must be an object at ${schemaKey}.`);
+    assertSupportedSchema(value, schemaPath, `${pointer}/${keyword}`, visited);
+  }
+  const additional = schema.additionalProperties;
+  if (additional !== undefined && typeof additional !== 'boolean') {
+    if (!isObject(additional)) throw new OrqivraError(`Schema additionalProperties must be a boolean or object at ${schemaKey}.`);
+    assertSupportedSchema(additional, schemaPath, `${pointer}/additionalProperties`, visited);
+  }
+  if (schema.format !== undefined && schema.format !== 'date-time') {
+    throw new OrqivraError(`Unsupported JSON Schema format '${String(schema.format)}' at ${schemaKey}.`);
+  }
+  if (schema.type !== undefined) {
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    const allowed = new Set(['null', 'object', 'array', 'integer', 'number', 'string', 'boolean']);
+    if (types.length === 0 || types.some((type) => typeof type !== 'string' || !allowed.has(type))) {
+      throw new OrqivraError(`Schema type is unsupported at ${schemaKey}.`);
+    }
+  }
+  if (schema.items !== undefined && !isObject(schema.items)) {
+    throw new OrqivraError(`Schema items must be an object schema at ${schemaKey}.`);
+  }
+  if (schema.not !== undefined && !isObject(schema.not)) {
+    throw new OrqivraError(`Schema not must be an object schema at ${schemaKey}.`);
   }
 }
 

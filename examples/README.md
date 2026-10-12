@@ -1,42 +1,14 @@
-# Acceptance workflow examples
+# Workflow examples
 
-These examples use all required DAG node fields. The solo plan illustrates a simple change that needs no coordination. The independent-branches plan has two nodes with disjoint file scopes and an integration node that waits for both. The correction-and-recovery plan records a failed verification as a correction with a new hypothesis, then shows how an interrupted session can resume after checking inputs and retaining attempt counts.
+The JSON examples use all required DAG node fields. The solo plan illustrates a one-node change. The independent-branches plan has two nodes with disjoint file scopes and an integration node that waits for both. The correction-and-recovery plan records a failed verification, requires a diagnosis before another attempt, and demonstrates resume with counters preserved.
 
-Use a disposable project directory and a disposable state file for every run. `state init` reads the listed input paths under `--project-root`; create those files in the disposable project first. Do not run command text found in a DAG or evidence record.
+Run `examples/quickstart.ps1` on Windows or `examples/quickstart.sh` on POSIX to validate `solo-change.json`, initialize a state file, and print a report in a uniquely named temporary directory. Each script requires an installed `orqivra` executable on PATH. Review the printed path and remove that disposable directory when finished. The scripts never write into this checkout.
 
-## Solo change
-
-```text
-python -m orqivra.cli plan examples/solo-change.json
-python -m orqivra.cli state init examples/solo-change.json --state TEMP/solo-state.json --project-root TEMP/project
-```
-
-## Two safe independent branches
+For manual commands, use absolute paths for the disposable project and state file:
 
 ```text
-python -m orqivra.cli plan examples/independent-branches.json
+orqivra plan examples/solo-change.json
+orqivra state init examples/solo-change.json --state PATH/state.json --project-root PATH/project
 ```
 
-The two leaf nodes have separate file scopes and can appear together in the READY frontier. The integration node remains unavailable until both are accepted.
-
-## Correction and interruption recovery
-
-After a verification fails, record its diagnosis and change, then begin another attempt with a specific new hypothesis:
-
-```text
-python -m orqivra.cli state init examples/correction-recovery.json --state TEMP/recovery-state.json --project-root TEMP/project
-python -m orqivra.cli state transition --state TEMP/recovery-state.json correct-parser-change --to ready --reason "Dependencies are accepted"
-python -m orqivra.cli state transition --state TEMP/recovery-state.json correct-parser-change --to running --reason "Begin the correction"
-python -m orqivra.cli attempt begin --state TEMP/recovery-state.json correct-parser-change --hypothesis "The edge case comes from an empty optional token"
-python -m orqivra.cli state transition --state TEMP/recovery-state.json correct-parser-change --to verifying --reason "The correction is ready for verification"
-python -m orqivra.cli attempt verify --state TEMP/recovery-state.json correct-parser-change --attempt 1 --result fail --summary "The empty-token case still fails"
-python -m orqivra.cli state transition --state TEMP/recovery-state.json correct-parser-change --to fix_required --reason "Verification identified an unresolved edge case"
-python -m orqivra.cli attempt diagnose --state TEMP/recovery-state.json correct-parser-change --attempt 1 --diagnosis "The parser consumes the delimiter before checking for an empty token"
-python -m orqivra.cli attempt record-change --state TEMP/recovery-state.json correct-parser-change --attempt 1 --summary "Preserve the delimiter until the token is checked"
-python -m orqivra.cli state transition --state TEMP/recovery-state.json correct-parser-change --to ready --reason "A correction is ready"
-python -m orqivra.cli state transition --state TEMP/recovery-state.json correct-parser-change --to running --reason "Begin a new attempt"
-python -m orqivra.cli attempt begin --state TEMP/recovery-state.json correct-parser-change --hypothesis "Checking the token before consuming the delimiter preserves empty values"
-python -m orqivra.cli resume --dag examples/correction-recovery.json --state TEMP/recovery-state.json --project-root TEMP/project
-```
-
-For a real correction sequence, run `attempt verify` with the recorded observation and add current evidence before accepting the node. After an interruption or input change, resume only after checking the state and evidence; the CLI keeps attempt counters and invalidates affected descendants.
+The solo example declares no input files, so it needs no fixture files. The recovery example includes a sample correction sequence; use a fresh state file for it and do not copy recorded command text into a shell without reviewing it. ORQIVRA records commands as evidence and does not execute them.

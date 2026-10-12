@@ -385,6 +385,13 @@ export function installSkills(edition: string, targetPath: string, selected: str
         } else if (current?.files[item.path]) {
           throw new OrqivraError(`An installed file disappeared during update: ${item.path}`);
         }
+        if (oldManifestBytes) {
+          if (!existsSync(manifestPath) || !readFileSync(manifestPath).equals(oldManifestBytes)) {
+            throw new OrqivraError(`Installation manifest changed during update: ${manifestPath}`);
+          }
+        } else if (existsSync(manifestPath)) {
+          throw new OrqivraError(`Installation manifest appeared during update: ${manifestPath}`);
+        }
         renameSync(temp, destination);
         temps.pop();
       }
@@ -424,17 +431,28 @@ export function uninstallSkills(targetPath: string, apply = false): JsonObject {
   const target = resolve(targetPath);
   rejectSymlinkComponents(target);
   if (!existsSync(target) || !statSync(target).isDirectory()) throw new OrqivraError(`Installation target must be a directory: ${target}`);
+  const manifestPath = resolve(target, MANIFEST_NAME);
+  rejectSymlinkPath(manifestPath);
+  const manifestBytes = readFileSync(manifestPath);
   const manifest = readInstallManifest(target);
+  if (!readFileSync(manifestPath).equals(manifestBytes)) throw new OrqivraError(`Installation manifest changed before uninstall: ${manifestPath}`);
   const verified = verifyInstall(target);
+  if (!readFileSync(manifestPath).equals(manifestBytes)) throw new OrqivraError(`Installation manifest changed before uninstall: ${manifestPath}`);
   const files = Object.keys(manifest.files).sort((left, right) => compareText(right, left));
   if (apply) {
     for (const relativePath of files) {
       const path = safeJoin(target, relativePath);
       if (sha256File(path) !== manifest.files[relativePath]) throw new OrqivraError(`Installed file changed during uninstall: ${relativePath}`);
+      rejectSymlinkPath(manifestPath);
+      if (!existsSync(manifestPath) || !readFileSync(manifestPath).equals(manifestBytes)) {
+        throw new OrqivraError(`Installation manifest changed during uninstall: ${manifestPath}`);
+      }
       unlinkSync(path);
     }
-    const manifestPath = resolve(target, MANIFEST_NAME);
     rejectSymlinkPath(manifestPath);
+    if (!existsSync(manifestPath) || !readFileSync(manifestPath).equals(manifestBytes)) {
+      throw new OrqivraError(`Installation manifest changed during uninstall: ${manifestPath}`);
+    }
     unlinkSync(manifestPath);
     const directories = [...new Set(files.map((path) => dirname(resolve(target, ...path.split('/')))))]
       .sort((left, right) => right.length - left.length);
