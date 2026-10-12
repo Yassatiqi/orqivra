@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "validation_cases": [
+    {
+      "id": "valid-project",
+      "operation": "validate_project",
+      "source": "valid-project.json",
+      "exit_code": 0,
+      "json": {"valid": true, "kind": "project", "id": "parity-project"}
+    },
+    {
+      "id": "valid-profile",
+      "operation": "validate_profile",
+      "source": "profiles/codex.json",
+      "exit_code": 0,
+      "json": {"valid": true, "kind": "profile", "id": "astra-advisor-codex", "edition": "codex"}
+    },
+    {
+      "id": "valid-dag",
+      "operation": "validate_dag",
+      "source": "examples/solo-change.json",
+      "exit_code": 0,
+      "json": {"valid": true, "kind": "dag", "id": "solo-copy-update", "node_count": 1, "snapshot_inputs": null}
+    },
+    {"id": "invalid-profile-schema", "operation": "validate_profile", "source": "invalid-profile.json", "exit_code": 2},
+    {"id": "missing-dependency", "operation": "validate_dag", "source": "missing-dependency.json", "exit_code": 2},
+    {"id": "cycle", "operation": "validate_dag", "source": "cycle.json", "exit_code": 2},
+    {"id": "overlapping-scopes", "operation": "validate_dag", "source": "overlapping-scopes.json", "exit_code": 2}
+  ],
+  "planning_cases": [
+    {
+      "id": "deterministic-ready-frontier",
+      "operation": "plan",
+      "source": "examples/independent-branches.json",
+      "exit_code": 0,
+      "json": {"dag_id": "independent-contract-updates", "ready_frontier": ["update-architecture-contract", "update-cli-reference"]}
+    }
+  ]
+}

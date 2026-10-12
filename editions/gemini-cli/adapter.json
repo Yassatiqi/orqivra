@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "edition": "gemini-cli",
+  "client_name": "Gemini CLI",
+  "native_skills_path": ".gemini/skills",
+  "guidance": "This edition is laid out under `.gemini/skills/<skill-name>/SKILL.md`. Gemini CLI discovers workspace skills there when the workspace is trusted; user skills live under `~/.gemini/skills/`. In an interactive session, run `/skills list` to inspect discovery and `/skills reload` after changes. Ask for the capability by name or describe a matching task; Gemini activates the skill when relevant and requests activation consent. The agent-owned activation mechanism is not a shell command to run manually. Workspace trust, activation consent, the CLI policy engine, and tool-specific confirmations control access. Skill activation does not grant filesystem or shell permissions. Do not bypass a denial; report a blocker when the required action is unavailable."
+}

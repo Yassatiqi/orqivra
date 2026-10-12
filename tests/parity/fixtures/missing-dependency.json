@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "id": "missing-dependency",
+  "objective": "Reject a missing dependency.",
+  "input_snapshot": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nodes": [
+    {
+      "id": "first",
+      "objective": "First node.",
+      "inputs": [],
+      "dependencies": ["absent"],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["first.txt"],
+      "risk": "low",
+      "acceptance_criteria": ["The dependency is rejected."],
+      "verification": ["Validate the fixture."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    }
+  ]
+}

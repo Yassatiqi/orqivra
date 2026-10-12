@@ -28,10 +28,38 @@ def schema_directory() -> Path:
 
 
 def load_json(path: Path) -> Any:
+    def object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Duplicate JSON object key: {key}")
+            result[key] = value
+        return result
+
+    def safe_integer(value: str) -> int:
+        result = int(value)
+        if abs(result) > 9_007_199_254_740_991:
+            raise ValueError("JSON integers must be within the interoperable safe range.")
+        return result
+
+    def reject_fraction(value: str) -> Any:
+        raise ValueError(f"Fractional JSON numbers are not supported: {value}")
+
+    def reject_constant(value: str) -> Any:
+        raise ValueError(f"Non-finite JSON numbers are not supported: {value}")
+
     try:
         with path.open("r", encoding="utf-8") as stream:
-            return json.load(stream)
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            return json.load(
+                stream,
+                object_pairs_hook=object_without_duplicate_keys,
+                parse_int=safe_integer,
+                parse_float=reject_fraction,
+                parse_constant=reject_constant,
+            )
+    except OSError as exc:
+        raise InputOutputError(f"Could not read {path}: {exc}") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
         raise OrqivraError(f"Could not read valid UTF-8 JSON from {path}: {exc}") from exc
 
 

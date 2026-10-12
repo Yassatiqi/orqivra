@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "id": "parity-project",
+  "name": "Shared parity project",
+  "root": "workspace with spaces",
+  "inputs": [],
+  "profile": "codex"
+}

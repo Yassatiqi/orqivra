@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/edition-adapter.schema.json",
+  "title": "ORQIVRA Client Edition Adapter",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "edition", "client_name", "native_skills_path", "guidance"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "edition": {"enum": ["codex", "claude-code", "gemini-cli"]},
+    "client_name": {"enum": ["Codex", "Claude Code", "Gemini CLI"]},
+    "native_skills_path": {"enum": [".agents/skills", ".claude/skills", ".gemini/skills"]},
+    "guidance": {"type": "string", "minLength": 100, "maxLength": 3000}
+  }
+}

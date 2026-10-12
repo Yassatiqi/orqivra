@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "dependency-cycle",
+  "objective": "Reject a dependency cycle.",
+  "input_snapshot": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nodes": [
+    {
+      "id": "alpha",
+      "objective": "First node.",
+      "inputs": [],
+      "dependencies": ["beta"],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["alpha.txt"],
+      "risk": "low",
+      "acceptance_criteria": ["The cycle is rejected."],
+      "verification": ["Validate the fixture."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    },
+    {
+      "id": "beta",
+      "objective": "Second node.",
+      "inputs": [],
+      "dependencies": ["alpha"],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["beta.txt"],
+      "risk": "low",
+      "acceptance_criteria": ["The cycle is rejected."],
+      "verification": ["Validate the fixture."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    }
+  ]
+}

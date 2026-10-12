@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "edition": "codex",
+  "client_name": "Codex",
+  "native_skills_path": ".agents/skills",
+  "guidance": "This edition is laid out under `.agents/skills/<skill-name>/SKILL.md`. Codex discovers repository skills from `.agents/skills` in the current directory and its parents up to the repository root. Use `/skills` to inspect the available list, then type `$orqivra-orchestrate`, `$orqivra-architecture`, `$orqivra-verify`, or `$orqivra-recover` for explicit invocation; relevant natural-language requests may also match the description. Restart Codex if a changed skill does not appear. This bundle omits `agents/openai.yaml`; if one is added later, use it only for documented metadata. The active Codex sandbox, approval settings, available tools, and organization policy control file edits, shell access, delegation, and network use. A skill or profile grants none of these. Report the actual controls and ask through the normal client flow when an action needs approval."
+}

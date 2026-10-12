@@ -13,7 +13,7 @@ import yaml
 
 from . import __version__
 from .errors import InputOutputError, OrqivraError, UnsafePathError
-from .paths import reject_symlink_components, reject_symlink_path, safe_join, safe_relative_path, sha256_file
+from .paths import is_linklike, reject_symlink_components, reject_symlink_path, safe_join, safe_relative_path, sha256_bytes, sha256_file
 from .schema import load_json, require_valid, validate_data
 
 SKILL_NAMES = {
@@ -34,12 +34,12 @@ def source_root() -> Path:
     if configured:
         candidates.insert(0, Path(configured))
     for candidate in candidates:
-        if (candidate / "editions").is_dir() and (candidate / "schemas").is_dir():
+        if (candidate / "editions").is_dir() and (candidate / "schemas").is_dir() and (candidate / "skills").is_dir():
             return candidate
     import sysconfig
 
     installed = Path(sysconfig.get_path("data")) / "share" / "orqivra"
-    if (installed / "editions").is_dir():
+    if (installed / "editions").is_dir() and (installed / "skills").is_dir():
         return installed
     raise InputOutputError("ORQIVRA edition resources were not found in this installation.")
 
@@ -54,30 +54,14 @@ def skills_root(edition_root: Path) -> Path:
     raise OrqivraError(f"Edition does not contain all four required skills: {edition_root}")
 
 
-def _is_linklike(path: Path) -> bool:
-    junction_check = getattr(path, "is_junction", None)
-    return path.is_symlink() or bool(junction_check and junction_check())
-
-
 def parse_skill(path: Path) -> tuple[dict[str, Any], str]:
-    if _is_linklike(path) or not path.is_file():
+    if is_linklike(path) or not path.is_file():
         raise UnsafePathError(f"Skill file must be regular and not a symlink or junction: {path}")
     try:
-        text = path.read_text(encoding="utf-8")
+        text = path.read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise OrqivraError(f"Could not read skill file {path}: {exc}") from exc
-    if not text.startswith("---\n"):
-        raise OrqivraError(f"Skill frontmatter must begin with ---: {path}")
-    end = text.find("\n---\n", 4)
-    if end < 0:
-        raise OrqivraError(f"Skill frontmatter is not closed: {path}")
-    try:
-        metadata = yaml.safe_load(text[4:end])
-    except yaml.YAMLError as exc:
-        raise OrqivraError(f"Invalid YAML frontmatter in {path}: {exc}") from exc
-    if not isinstance(metadata, dict):
-        raise OrqivraError(f"Skill frontmatter must be a mapping: {path}")
-    return metadata, text[end + 5 :]
+    return parse_skill_text(text, str(path))
 
 
 def validate_skills(root: Path) -> dict[str, Any]:
@@ -86,25 +70,86 @@ def validate_skills(root: Path) -> dict[str, Any]:
     skill_files = sorted(root.rglob("SKILL.md"))
     if len(skill_files) != 4:
         raise OrqivraError(f"An edition must contain exactly four SKILL.md files; found {len(skill_files)}.")
-    names: set[str] = set()
-    results = []
+    contents: dict[str, str] = {}
     for path in skill_files:
-        metadata, body = parse_skill(path)
+        if is_linklike(path) or not path.is_file():
+            raise UnsafePathError(f"Skill file must be regular and not a symlink or junction: {path}")
+        try:
+            contents[path.parent.name] = path.read_bytes().decode("utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OrqivraError(f"Could not read skill file {path}: {exc}") from exc
+    return validate_skill_contents(contents)
+
+
+def validate_skill_contents(contents: dict[str, str]) -> dict[str, Any]:
+    if set(contents) != SKILL_NAMES:
+        raise OrqivraError("Edition skills must be exactly: " + ", ".join(sorted(SKILL_NAMES)))
+    results = []
+    for name, text in sorted(contents.items()):
+        metadata, body = parse_skill_text(text, name)
         errors = validate_data(metadata, "skill.schema.json")
         if errors:
-            raise OrqivraError(f"Invalid metadata in {path}:\n- " + "\n- ".join(errors))
-        if metadata["name"] != path.parent.name:
-            raise OrqivraError(f"Skill name must match its directory name: {path}")
-        if metadata["name"] in names:
-            raise OrqivraError(f"Duplicate skill name: {metadata['name']}")
-        names.add(metadata["name"])
+            raise OrqivraError(f"Invalid metadata in {name}/SKILL.md:\n- " + "\n- ".join(errors))
+        if metadata["name"] != name:
+            raise OrqivraError(f"Skill name must match its directory name: {name}/SKILL.md")
         word_count = len(body.split())
         if not 500 <= word_count <= 900:
-            raise OrqivraError(f"Skill body must contain 500-900 words: {path} has {word_count}.")
+            raise OrqivraError(f"Skill body must contain 500-900 words: {name}/SKILL.md has {word_count}.")
         results.append({"name": metadata["name"], "words": word_count})
-    if names != SKILL_NAMES:
-        raise OrqivraError("Edition skills must be exactly: " + ", ".join(sorted(SKILL_NAMES)))
     return {"skills": results, "count": len(results)}
+
+
+def parse_skill_text(text: str, source: str) -> tuple[dict[str, Any], str]:
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if not text.startswith("---\n"):
+        raise OrqivraError(f"Skill frontmatter must begin with ---: {source}")
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        raise OrqivraError(f"Skill frontmatter is not closed: {source}")
+    try:
+        metadata = yaml.safe_load(text[4:end])
+    except yaml.YAMLError as exc:
+        raise OrqivraError(f"Invalid YAML frontmatter in {source}: {exc}") from exc
+    if not isinstance(metadata, dict):
+        raise OrqivraError(f"Skill frontmatter must be a mapping: {source}")
+    return metadata, text[end + 5 :]
+
+
+def render_edition_skills(edition: str) -> tuple[dict[str, str], dict[str, Any]]:
+    edition_root = _edition_dir(edition)
+    root = source_root()
+    adapter_path = edition_root / "adapter.json"
+    if is_linklike(adapter_path) or not adapter_path.is_file():
+        raise UnsafePathError(f"Edition adapter must be a regular file: {adapter_path}")
+    adapter = load_json(adapter_path)
+    require_valid(adapter, "edition-adapter.schema.json")
+    if adapter["edition"] != edition:
+        raise OrqivraError(f"Edition adapter ID does not match its directory: {adapter_path}")
+    expected_paths = {
+        "codex": ".agents/skills",
+        "claude-code": ".claude/skills",
+        "gemini-cli": ".gemini/skills",
+    }
+    if adapter["native_skills_path"] != expected_paths[edition]:
+        raise OrqivraError(f"Edition adapter has an unexpected native skill path: {adapter_path}")
+    rendered: dict[str, str] = {}
+    marker = "<!-- ORQIVRA_CLIENT_ADAPTER -->"
+    adapter_section = f"## {adapter['client_name']} discovery, invocation, and permissions\n\n{adapter['guidance']}"
+    for name in sorted(SKILL_NAMES):
+        source = root / "skills" / name / "SKILL.md"
+        if is_linklike(source) or not source.is_file():
+            raise UnsafePathError(f"Canonical skill source must be a regular file: {source}")
+        try:
+            text = source.read_bytes().decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        except (OSError, UnicodeDecodeError) as exc:
+            raise OrqivraError(f"Could not read canonical skill source {source}: {exc}") from exc
+        if text.count(marker) != 1:
+            raise OrqivraError(f"Canonical skill source must contain one client adapter marker: {source}")
+        rendered[name] = text.replace(marker, adapter_section)
+    validation = validate_skill_contents(rendered)
+    return rendered, validation
 
 
 def _edition_dir(edition: str) -> Path:
@@ -124,7 +169,7 @@ def _copy_tree_files(source: Path, destination: Path, *, prefix: Path = Path()) 
     hashes: dict[str, str] = {}
     for item in sorted(source.rglob("*")):
         relative = item.relative_to(source)
-        if _is_linklike(item):
+        if is_linklike(item):
             raise UnsafePathError(f"Edition source contains a symlink or junction: {item}")
         if item.is_dir():
             continue
@@ -141,21 +186,37 @@ def _copy_tree_files(source: Path, destination: Path, *, prefix: Path = Path()) 
 def _bundle_files(edition: str, output: Path) -> dict[str, str]:
     root = source_root()
     edition_root = _edition_dir(edition)
-    native_root = skills_root(edition_root)
-    validate_skills(native_root)
+    rendered, _ = render_edition_skills(edition)
+    adapter = load_json(edition_root / "adapter.json")
+    native_path = Path(adapter["native_skills_path"])
     profile = root / "profiles" / f"{edition}.json"
     require_valid(load_json(profile), "profile.schema.json")
-    hashes = _copy_tree_files(native_root, output, prefix=native_root.relative_to(edition_root))
+    hashes: dict[str, str] = {}
+    for name, text in rendered.items():
+        relative = native_path / name / "SKILL.md"
+        target = output / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        payload = text.encode("utf-8")
+        target.write_bytes(payload)
+        hashes[relative.as_posix()] = sha256_bytes(payload)
     for name, source in (
         (Path("profiles") / profile.name, profile),
         (Path("contracts") / "capabilities.md", root / "core" / "contracts" / "capabilities.md"),
+        (Path("editions") / edition / "adapter.json", edition_root / "adapter.json"),
+        (Path("LICENSE"), root / "LICENSE"),
     ):
-        target = output / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(source.read_bytes())
-        hashes[name.as_posix()] = sha256_file(target)
+        hashes[name.as_posix()] = _copy_regular_file(source, output / name)
     hashes.update(_copy_tree_files(root / "schemas", output, prefix=Path("schemas")))
     return hashes
+
+
+def _copy_regular_file(source: Path, target: Path) -> str:
+    if is_linklike(source) or not source.is_file():
+        raise UnsafePathError(f"Bundle source must be a regular file: {source}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    payload = source.read_bytes()
+    target.write_bytes(payload)
+    return sha256_bytes(payload)
 
 
 def build(edition: str, output: Path) -> list[Path]:
@@ -229,16 +290,14 @@ def _safe_destination(root: Path, relative: str) -> Path:
     normalized = safe_relative_path(relative)
     current = root
     for component in normalized.split("/"):
-        if current.is_symlink() or (hasattr(current, "is_junction") and current.is_junction()):
+        if is_linklike(current):
             raise UnsafePathError(f"Installation path crosses a symlink: {current}")
         current = current / component
     return current
 
 
 def install(edition: str, target: Path, selected: list[str] | None = None, *, apply: bool = False) -> dict[str, Any]:
-    edition_root = _edition_dir(edition)
-    native_root = skills_root(edition_root)
-    validation = validate_skills(native_root)
+    rendered, validation = render_edition_skills(edition)
     selected_names = sorted(set(selected or SKILL_NAMES))
     unknown = set(selected_names) - SKILL_NAMES
     if unknown:
@@ -254,31 +313,28 @@ def install(edition: str, target: Path, selected: list[str] | None = None, *, ap
             path = safe_join(target, relative)
             if sha256_file(path) != old_hash:
                 raise OrqivraError(f"An installed file was modified; refusing to overwrite it: {relative}")
-    elif target.exists() and manifest_path.is_symlink():
+    elif target.exists() and is_linklike(manifest_path):
         raise UnsafePathError(f"Installation manifest is a symlink: {manifest_path}")
 
     new_files = dict(current["files"]) if current else {}
     planned = []
+    payloads: dict[str, bytes] = {}
     for name in selected_names:
-        source_dir = native_root / name
-        for source in sorted(source_dir.rglob("*")):
-            if _is_linklike(source):
-                raise UnsafePathError(f"Skill source contains a symlink or junction: {source}")
-            if not source.is_file():
-                continue
-            relative = (Path(name) / source.relative_to(source_dir)).as_posix()
-            digest = sha256_file(source)
-            destination = _safe_destination(target, relative)
-            owned_hash = new_files.get(relative)
-            if destination.exists():
-                if destination.is_symlink():
-                    raise UnsafePathError(f"Installation destination is a symlink: {destination}")
-                if owned_hash is None:
-                    raise OrqivraError(f"Unowned destination already exists: {destination}")
-                if sha256_file(destination) != owned_hash:
-                    raise OrqivraError(f"An installed file was modified; refusing to overwrite it: {relative}")
-            planned.append(relative)
-            new_files[relative] = digest
+        relative = (Path(name) / "SKILL.md").as_posix()
+        payload = rendered[name].encode("utf-8")
+        digest = sha256_bytes(payload)
+        destination = _safe_destination(target, relative)
+        owned_hash = new_files.get(relative)
+        if destination.exists():
+            if is_linklike(destination):
+                raise UnsafePathError(f"Installation destination is a symlink: {destination}")
+            if owned_hash is None:
+                raise OrqivraError(f"Unowned destination already exists: {destination}")
+            if sha256_file(destination) != owned_hash:
+                raise OrqivraError(f"An installed file was modified; refusing to overwrite it: {relative}")
+        planned.append(relative)
+        new_files[relative] = digest
+        payloads[relative] = payload
 
     manifest = {
         "format_version": 1,
@@ -290,6 +346,7 @@ def install(edition: str, target: Path, selected: list[str] | None = None, *, ap
     }
     if apply:
         target.mkdir(parents=True, exist_ok=True)
+        reject_symlink_components(target)
         pending = []
         for relative in planned:
             destination = _safe_destination(target, relative)
@@ -297,32 +354,25 @@ def install(edition: str, target: Path, selected: list[str] | None = None, *, ap
             reject_symlink_path(temp)
             if temp.exists():
                 raise OrqivraError(f"Temporary installation path already exists: {temp}")
-            pending.append((relative, destination, temp))
+            pending.append((relative, destination, temp, payloads[relative]))
         manifest_temp = manifest_path.with_name(manifest_path.name + ".orqivra-tmp")
         reject_symlink_path(manifest_temp)
         if manifest_temp.exists():
             raise OrqivraError(f"Temporary installation path already exists: {manifest_temp}")
-        for name in selected_names:
-            source_dir = native_root / name
-            for source in sorted(source_dir.rglob("*")):
-                if _is_linklike(source):
-                    raise UnsafePathError(f"Skill source contains a symlink or junction: {source}")
-                if not source.is_file():
-                    continue
-                relative = (Path(name) / source.relative_to(source_dir)).as_posix()
-                _, destination, temp = next(item for item in pending if item[0] == relative)
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                created_temp = False
-                try:
-                    with temp.open("xb") as stream:
-                        created_temp = True
-                        stream.write(source.read_bytes())
-                        stream.flush()
-                        os.fsync(stream.fileno())
-                    os.replace(temp, destination)
-                finally:
-                    if created_temp:
-                        temp.unlink(missing_ok=True)
+        for relative, destination, temp, payload in pending:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            reject_symlink_components(destination)
+            created_temp = False
+            try:
+                with temp.open("xb") as stream:
+                    created_temp = True
+                    stream.write(payload)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                os.replace(temp, destination)
+            finally:
+                if created_temp:
+                    temp.unlink(missing_ok=True)
         _write_manifest(target, manifest)
     return {"edition": edition, "target": str(target), "dry_run": not apply, "files": sorted(planned), "skill_count": len(validation["skills"])}
 

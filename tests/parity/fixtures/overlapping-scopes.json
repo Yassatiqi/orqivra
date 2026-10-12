@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "id": "overlapping-scopes",
+  "objective": "Reject overlapping runnable ownership scopes.",
+  "input_snapshot": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "nodes": [
+    {
+      "id": "parent-scope",
+      "objective": "Own a parent path.",
+      "inputs": [],
+      "dependencies": [],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["src"],
+      "risk": "low",
+      "acceptance_criteria": ["The overlap is rejected."],
+      "verification": ["Validate the fixture."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    },
+    {
+      "id": "child-scope",
+      "objective": "Own a child path.",
+      "inputs": [],
+      "dependencies": [],
+      "role": "implementer",
+      "profile": "local-default",
+      "file_scope": ["src/main.py"],
+      "risk": "low",
+      "acceptance_criteria": ["The overlap is rejected."],
+      "verification": ["Validate the fixture."],
+      "status": "planned",
+      "attempts": 0,
+      "evidence": [],
+      "blocking_reason": null
+    }
+  ]
+}

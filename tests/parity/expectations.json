@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "invalid_case_exit_code": 2,
+  "unsafe_path_exit_code": 4,
+  "concurrent_writer_exit_code": 3,
+  "maximum_attempts": 5,
+  "manifest": {
+    "owner": "ORQIVRA",
+    "format_version": 1
+  },
+  "interrupted_attempt_result": "interrupted",
+  "scoped_invalidation": {
+    "changed_input_and_artifact": ["A", "B"],
+    "unaffected_independent_node": "C",
+    "resumed_statuses": {"A": "ready", "B": "planned", "C": "accepted"}
+  }
+}

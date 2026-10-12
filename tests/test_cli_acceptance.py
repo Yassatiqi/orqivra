@@ -15,6 +15,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
 ZERO_HASH = "sha256:" + "0" * 64
+sys.path.insert(0, str(ROOT / "src"))
+from orqivra.errors import InputOutputError, OrqivraError
+from orqivra.paths import digest_json
+from orqivra.schema import load_json
+
 EDITIONS = ("codex", "claude-code", "gemini-cli")
 CAPABILITIES = (
     "orqivra-orchestrate",
@@ -80,6 +85,29 @@ class CliAcceptanceTests(unittest.TestCase):
             result.returncode,
             0,
             f"Expected CLI success; stdout={result.stdout!r}, stderr={result.stderr!r}",
+        )
+
+    def test_json_contract_rejects_duplicates_fractions_and_unsafe_integers(self) -> None:
+        cases = (
+            '{"value": 1, "value": 2}',
+            '{"value": 1.5}',
+            '{"value": 9007199254740992}',
+            '{"value": NaN}',
+        )
+        for index, content in enumerate(cases):
+            with self.subTest(content=content):
+                path = self.base / f"invalid-json-{index}.json"
+                path.write_text(content, encoding="utf-8")
+                with self.assertRaises(OrqivraError):
+                    load_json(path)
+
+        with self.assertRaises(InputOutputError):
+            load_json(self.base / "missing.json")
+
+    def test_canonical_json_hash_matches_the_node_golden_value(self) -> None:
+        self.assertEqual(
+            digest_json({"z": 1, "a": "é"}),
+            "fb64e573f7cde5b7efeda52ffc4bdd57572055b0b7e64a70172606c82c6c7eac",
         )
 
     def write_dag(

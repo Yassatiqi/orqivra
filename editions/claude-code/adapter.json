@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "edition": "claude-code",
+  "client_name": "Claude Code",
+  "native_skills_path": ".claude/skills",
+  "guidance": "This edition is laid out under `.claude/skills/<skill-name>/SKILL.md`. Claude Code loads project skills from that directory and personal skills from `~/.claude/skills`; check that the repository is trusted and the active settings sources allow project skills. Use `/skills` to inspect loaded skills and invoke a capability directly with `/orqivra-orchestrate`, `/orqivra-architecture`, `/orqivra-verify`, or `/orqivra-recover`. A natural-language request matching the description may also load it automatically. Claude Code permission prompts and configured tool rules remain authoritative. Do not infer permission from skill activation, alter permission settings to bypass a prompt, or use a skip-permissions mode as a workaround. If a required action is denied or unavailable, stop that action and explain the resulting blocker."
+}

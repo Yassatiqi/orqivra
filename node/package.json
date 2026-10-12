@@ -1,0 +1,25 @@
+{
+  "name": "orqivra",
+  "version": "0.2.0",
+  "description": "A local, provider-independent engineering workflow CLI for AI agents",
+  "type": "module",
+  "main": "./dist/cli.js",
+  "bin": {
+    "orqivra": "./dist/cli.js"
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "npm run build && node --test test/**/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2"
+  }
+}

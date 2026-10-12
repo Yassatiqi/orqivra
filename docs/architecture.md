@@ -2,15 +2,23 @@
 
 ## Product boundary
 
-ORQIVRA is a local session framework for provider-independent engineering work. It supplies four composable capabilities: orchestration, architecture, verification, and recovery. A deterministic Python CLI tracks a user-authored task DAG, evidence, attempts, and state. It does not schedule autonomous work beyond the current session.
+ORQIVRA is a local session framework for provider-independent engineering work. It supplies four composable capabilities: orchestration, architecture, verification, and recovery. The same public CLI is implemented independently in Python and TypeScript. Python requires 3.11 or newer; the npm edition requires Node.js 24 or newer. Neither implementation invokes the other runtime. ORQIVRA does not schedule autonomous work beyond the current session.
 
-The three editions share these contracts but adapt their triggers, discovery paths, invocation syntax, and available client controls. A model profile is configuration, not an agent or skill. Project policy describes intended constraints; a client's permission system remains authoritative.
+The Codex, Claude Code, and Gemini CLI editions share capability sources, schemas, profiles, fixtures, and CLI behavior. A validated adapter supplies client discovery, invocation, permission guidance, and native skill paths. A model profile is configuration, not an agent or skill. Project policy describes intended constraints; a client's permission system remains authoritative.
+
+## Implementations and assets
+
+The Python implementation is in `src/orqivra/`; the TypeScript implementation is in `node/src/`. Shared schemas live in `schemas/`, capability contracts in `core/contracts/`, canonical skills in `skills/`, profiles in `profiles/`, client adapters in `editions/`, and parity fixtures in `tests/parity/`. The npm build and Python installer render runtime assets from those sources. The implementations keep their language-specific state and filesystem code separate and exchange ordinary JSON files.
+
+The public shared JSON parser rejects duplicate keys, non-integer values, integers outside the interoperable safe range `-(2^53 - 1)` through `2^53 - 1`, and strings containing lone UTF-16 surrogates. Canonical JSON is compact UTF-8 JSON with recursively sorted object keys in Unicode scalar-value order. Arrays retain their input order. `null`, booleans, strings, and safe integers are supported. SHA-256 of those UTF-8 bytes is written as lowercase hexadecimal. Python and Node tests compare the resulting bytes and digest.
 
 ## Data ownership and snapshot identity
 
-The DAG JSON is the immutable plan input for one state initialization. The state JSON records its normalized plan hash, a snapshot hash over that plan and project-root-relative input hashes, an integer state version, append-only events, dependencies, attempts, evidence, and node statuses. Each writer obtains an exclusive sibling lock, checks the state version and file identity, writes a temporary file in the same directory, flushes it, and atomically replaces the state file. A concurrent writer receives a conflict and must reload; it must not overwrite.
+The DAG JSON is the immutable plan input for one state initialization. The state JSON records its normalized plan hash, a snapshot hash over that plan and project-root-relative input hashes, an integer state version, append-only events, dependencies, attempts, evidence, and node statuses. Each writer obtains an exclusive sibling lock, checks the state version and file identity, writes a temporary file in the same directory, flushes it, and atomically replaces the state file. A concurrent writer receives a conflict and must reload; it must not overwrite. Python and Node use the same lock and state formats so either CLI can continue a state file.
 
 Evidence binds an observed command result and artifacts to a node snapshot. The node snapshot includes the plan header, that node's definition, its dependency definitions, and input hashes used by the node and its dependencies. This lets an unchanged independent branch retain current evidence when a different branch's input changes. Evidence records are append-ordered; the latest record is active for acceptance, while older records remain historical. Reports identify stale active evidence separately from superseded stale history. Acceptance and read-only reporting recheck actual input and active artifact hashes, so stale files cannot certify a node before an explicit evidence check. File hashes prove artifact identity only. They do not prove semantic correctness. A changed input marks affected nodes and accepted descendants obsolete and invalidates their active evidence before resume.
+
+Recovery preserves attempt counters across sessions and runtime changes.
 
 ## DAG rules
 

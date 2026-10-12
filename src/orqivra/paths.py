@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from .errors import InputOutputError, UnsafePathError
@@ -44,7 +45,7 @@ def safe_join(root: Path, relative: str, *, allow_missing: bool = False) -> Path
     current = base
     for part in PurePosixPath(normalized).parts:
         current = current / part
-        if _is_symlinklike(current):
+        if is_linklike(current):
             raise UnsafePathError(f"Symlinks are not allowed under the selected root: {current}")
         if not current.exists() and not allow_missing:
             raise InputOutputError(f"Path does not exist: {current}")
@@ -57,7 +58,7 @@ def safe_join(root: Path, relative: str, *, allow_missing: bool = False) -> Path
 
 def sha256_file(path: Path) -> str:
     """Return the lowercase SHA-256 digest of a regular file."""
-    if path.is_symlink() or not path.is_file():
+    if is_linklike(path) or not path.is_file():
         raise UnsafePathError(f"Expected a regular non-symlink file: {path}")
     digest = hashlib.sha256()
     try:
@@ -74,22 +75,77 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def digest_json(value: object) -> str:
-    """Hash canonical UTF-8 JSON data."""
+    """Hash the shared ORQIVRA canonical JSON representation as UTF-8."""
     import json
 
+    _validate_canonical_value(value, "$", set())
     data = json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     return sha256_bytes(data)
 
 
-def _is_symlinklike(path: Path) -> bool:
-    junction_check = getattr(path, "is_junction", None)
-    return path.is_symlink() or bool(junction_check and junction_check())
+def _validate_canonical_value(value: object, location: str, ancestors: set[int]) -> None:
+    """Reject values whose JSON identity is not stable across implementations."""
+    if value is None or isinstance(value, bool):
+        return
+    if isinstance(value, str):
+        if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
+            raise ValueError(f"Canonical JSON strings cannot contain lone surrogates at {location}.")
+        return
+    if isinstance(value, int):
+        if abs(value) > 9_007_199_254_740_991:
+            raise ValueError(f"Canonical JSON integers must be within the interoperable safe range at {location}.")
+        return
+    if isinstance(value, float):
+        raise ValueError(f"Canonical JSON does not allow fractional or non-finite numbers at {location}.")
+    identity = id(value)
+    if identity in ancestors:
+        raise ValueError(f"Canonical JSON values cannot contain cycles at {location}.")
+    if isinstance(value, list):
+        ancestors.add(identity)
+        try:
+            for index, item in enumerate(value):
+                _validate_canonical_value(item, f"{location}/{index}", ancestors)
+        finally:
+            ancestors.remove(identity)
+        return
+    if isinstance(value, dict):
+        ancestors.add(identity)
+        try:
+            for key, item in value.items():
+                if not isinstance(key, str):
+                    raise ValueError(f"Canonical JSON object keys must be strings at {location}.")
+                _validate_canonical_value(key, f"{location}/<key>", ancestors)
+                _validate_canonical_value(item, f"{location}/{key}", ancestors)
+        finally:
+            ancestors.remove(identity)
+        return
+    raise ValueError(f"Unsupported canonical JSON value at {location}: {type(value).__name__}.")
+
+
+def is_linklike(path: Path) -> bool:
+    """Return whether a path is a symlink or Windows reparse point.
+
+    ``Path.is_junction`` is only available on newer Python versions. Inspecting
+    ``lstat`` metadata keeps junction detection available on Python 3.11 while
+    also avoiding following the path being checked.
+    """
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        raise InputOutputError(f"Could not inspect path: {path}") from exc
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    if os.name == "nt":
+        return bool(metadata.st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    return False
 
 
 def reject_symlink_path(path: Path) -> None:
     """Reject a symlink at the selected path itself."""
     try:
-        if _is_symlinklike(path):
+        if is_linklike(path):
             raise UnsafePathError(f"Selected path is a symlink: {path}")
     except OSError as exc:
         raise InputOutputError(f"Could not inspect path: {path}") from exc
@@ -105,7 +161,7 @@ def reject_symlink_components(path: Path) -> None:
     for component in parts[1:]:
         current = current / component
         try:
-            if _is_symlinklike(current):
+            if is_linklike(current):
                 raise UnsafePathError(f"Path crosses a symlink or junction: {current}")
         except OSError as exc:
             raise InputOutputError(f"Could not inspect path: {current}") from exc

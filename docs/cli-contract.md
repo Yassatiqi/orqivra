@@ -1,6 +1,8 @@
 # CLI Contract
 
-The public command is `orqivra` (also available as `python -m orqivra.cli`). JSON is used for machine-readable project, DAG, profile, state, and evidence files. The CLI validates skill YAML frontmatter with its declared PyYAML dependency.
+The public command is `orqivra`. It is available from the npm distribution and the Python distribution; Python also supports `python -m orqivra.cli`. Node.js 24 or newer is required for npm. Python 3.11 or newer is required for pipx. Each implementation provides the commands below without invoking the other runtime. JSON is used for machine-readable project, DAG, profile, state, and evidence files.
+
+Shared JSON is strict: duplicate keys, fractions, non-finite values, integers outside the safe interoperable range, and lone surrogates are rejected. Canonical serialization recursively sorts object keys by Unicode scalar value, preserves array order, emits compact UTF-8 JSON, and hashes those bytes with SHA-256. The Python and Node implementations share golden serialization and hash fixtures.
 
 ## Commands
 
@@ -26,8 +28,10 @@ orqivra verify-install --target DIR
 orqivra uninstall --target DIR [--dry-run|--apply]
 ```
 
+Both implementations accept the same command names, JSON formats, installation manifests, and documented exit codes. A profile describes a logical role; it does not select the parent model or grant permissions.
+
 `plan` validates missing dependencies, cycles, and ownership conflicts and returns a stable lexical READY frontier. `state transition` rejects illegal edges and unmet prerequisites. Transitioning a node to `obsolete` invalidates its dependent subtree and queues it for `resume`; active attempts are marked interrupted and require diagnosis after resume. Acceptance also rechecks the relevant input and active evidence artifact hashes; changed inputs or artifacts require `evidence check` and recovery before acceptance. `attempt begin` increments once before work starts and enforces the five-attempt ceiling. `evidence add` hashes artifacts but never runs the recorded command. Evidence records are append-ordered; the latest record is active, and earlier records remain historical. `evidence check` finds changed inputs or active artifacts and invalidates dependent acceptance. `resume` recalculates only affected nodes and preserves counters. `report` is read-only: it checks current input and active artifact hashes, lists changed inputs, stale active evidence, superseded stale history, and accepted nodes without current successful evidence. It never certifies changed inputs, stale active evidence, or accepted nodes without current successful evidence.
 
 Mutations require an existing state path or an explicit `state init`. Every mutation uses a state version check and atomic replacement under an exclusive lock. On conflict, the command fails without overwriting. The `--target` argument to install or uninstall is mandatory and is the exact installation root; commands never infer a home directory or edit global client instructions. Both commands default to dry-run. Pass `--apply` to perform the reviewed operation. A manifest records every owned relative path and SHA-256 digest. Verification and uninstall refuse missing, modified, or unsafe entries.
 
-The CLI uses exit code 0 for success, 2 for invalid data or illegal state, 3 for a concurrent version conflict, and 4 for I/O or unsafe-path errors. Diagnostics are English. No command accepts a shell command to execute.
+The CLI uses exit code 0 for success, 2 for invalid data or illegal state, 3 for a concurrent version conflict, and 4 for I/O or unsafe-path errors. Diagnostics are English. No command accepts a shell command to execute. Both distributions are local release artifacts until a public package version has actually been published.
