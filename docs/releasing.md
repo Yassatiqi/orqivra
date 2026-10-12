@@ -5,6 +5,7 @@
 - Run `python -m unittest discover -s tests -v`, `python -m orqivra.cli --help`, and `npm.cmd test --prefix node` on supported local runtimes.
 - Run focused filesystem regressions, shared fixtures, and affected Python/Node state and installation interoperability.
 - Exercise the declared Python 3.11 minimum on Windows, including a real junction test. A skipped or unavailable test remains unresolved.
+- In the Windows Python 3.11 CI job, run `python scripts/verify_windows_python311_junctions.py`; this release gate must execute both required junction regressions with zero skips. The ordinary cross-platform suite may retain its Windows-only test skip on Linux.
 - Build Python wheel/source distributions and the npm tarball. Inspect package inventories and SHA-256 values.
 - Install and run each artifact outside the checkout with the other runtime unavailable.
 - Review the complete source diff, documentation links, package metadata, and generated archive inventory.

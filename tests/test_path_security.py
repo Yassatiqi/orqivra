@@ -13,11 +13,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from orqivra.dag import plan_hashes
 from orqivra.errors import OrqivraError, UnsafePathError
 from orqivra.installer import install
 from orqivra.paths import is_linklike, reject_symlink_components, reject_symlink_path, safe_join
+from verify_windows_python311_junctions import discovery_error, execution_error, runtime_error
 from orqivra.state import (
     _collect_input_hashes,
     _evidence_stale_reason,
@@ -227,6 +229,24 @@ class PathSecurityTests(unittest.TestCase):
             finally:
                 if junction.exists() or junction.is_symlink():
                     junction.rmdir()
+
+
+class JunctionQualificationGateTests(unittest.TestCase):
+    def test_release_gate_requires_windows_python_311(self) -> None:
+        self.assertIsNone(runtime_error("nt", (3, 11)))
+        self.assertIn("Python 3.11", runtime_error("nt", (3, 13)) or "")
+        self.assertIn("Windows", runtime_error("posix", (3, 11)) or "")
+
+    def test_release_gate_rejects_missing_or_unloadable_junction_tests(self) -> None:
+        self.assertIsNone(discovery_error([], 2, 2))
+        self.assertIn("count", discovery_error([], 1, 2) or "")
+        self.assertIn("ImportError", discovery_error(["ImportError: test missing"], 2, 2) or "")
+
+    def test_release_gate_rejects_skipped_unexecuted_or_failed_junction_tests(self) -> None:
+        self.assertIsNone(execution_error(2, 0, True, 2))
+        self.assertIn("skipped", execution_error(2, 1, True, 2) or "")
+        self.assertIn("Executed 0", execution_error(0, 0, True, 2) or "")
+        self.assertIn("failed", execution_error(2, 0, False, 2) or "")
 
 
 if __name__ == "__main__":

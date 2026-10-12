@@ -44,3 +44,5 @@ git diff --check
 ```
 
 The Python regression suite and Python help command are required before release. Report static validation, executed behavior, self-verification, independent review, unavailable integrations, and deferred external obligations separately. Do not describe an unavailable check or client runtime as passing.
+
+For source ownership, generated assets, shared interfaces, adapter boundaries, and release gates, see the [maintenance guide](MAINTENANCE.md).

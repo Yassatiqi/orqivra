@@ -8,5 +8,6 @@
 - [Client qualification](client-qualification.md): test discovery and activation without changing global permissions.
 - [Security](security.md): reporting, path, evidence, and installation boundaries.
 - [Releasing](releasing.md): local verification and external publication checklist.
+- [Maintenance guide](../MAINTENANCE.md): canonical sources, runtime boundaries, generated assets, and release maintenance.
 
 Local session history, build outputs, package inventories, and qualification logs are stored in ignored `scratch/`; they are not part of the public documentation tree.

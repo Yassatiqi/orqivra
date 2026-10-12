@@ -1,0 +1,2 @@
+# POSIX shell entry points must stay runnable when distributed from Git archives.
+*.sh text eol=lf
