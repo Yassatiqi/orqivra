@@ -4,25 +4,31 @@ ORQIVRA has independent Python and Node implementations. Choose one route. Each 
 
 ## Python source setup
 
-Prerequisites: a checkout or extracted source archive with this directory as its root, Python 3.11 or newer with its `venv` and `pip` modules, and network or package-index access to install the project and its Python dependencies. On Windows, the Python launcher (`py`) is convenient; if it is unavailable, substitute the full path to a Python 3.11 executable for `py` below. From the repository root, create an isolated environment, install the checkout, and add its scripts directory to this PowerShell session's PATH:
+Prerequisites: a checkout or extracted source archive with this directory as its root, Python 3.11 or newer with its `venv` and `pip` modules, and network or package-index access to install the project and its Python dependencies. The commands below select an installed Python 3 interpreter and check that it meets the minimum version before creating an environment. From the repository root, create an isolated environment, install the checkout, and add its scripts directory to this PowerShell session's PATH:
 
 ```powershell
-py -3.11 --version
-py -3.11 -m venv .venv
+py -3 --version
+py -3 -c "import sys; assert sys.version_info >= (3, 11), 'Python 3.11 or newer is required'"
+py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e .
 $env:Path = "$PWD\.venv\Scripts;$env:Path"
 orqivra --help
 ```
 
-For POSIX, use Python 3.11 or newer and run:
+If the launcher selects a Python older than 3.11, select an installed supported version explicitly, for example with `py -3.13`, and replace each `py -3` above with that selector. If the launcher is unavailable, use the full path to an installed Python 3.11 or newer executable for those commands. The selected interpreter must include `venv` and `pip`.
+
+On POSIX, use Python 3.11 or newer and run:
 
 ```sh
-python3.11 --version
-python3.11 -m venv .venv
+python3 --version
+python3 -c "import sys; assert sys.version_info >= (3, 11), 'Python 3.11 or newer is required'"
+python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e .
 orqivra --help
 ```
+
+If `python3` selects a version older than 3.11, use an installed supported interpreter such as `python3.12` or its full path, and replace each `python3` above with that command. The selected interpreter must include `venv` and `pip`.
 
 The editable install and PATH update apply to this checkout and shell session. This route requires no Node.js or npm.
 
