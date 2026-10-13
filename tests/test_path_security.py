@@ -212,7 +212,11 @@ class PathSecurityTests(unittest.TestCase):
                     safe_join(selected_root, "redirected-directory/source.txt")
 
                 safe_file = selected_root / "ordinary.txt"
-                self.assertEqual(safe_join(selected_root, "ordinary.txt", allow_missing=True), safe_file)
+                # Windows temp paths may use an 8.3 alias while safe_join resolves the long path.
+                self.assertEqual(
+                    safe_join(selected_root, "ordinary.txt", allow_missing=True).resolve(strict=False),
+                    safe_file.resolve(strict=False),
+                )
                 with self.assertRaises(UnsafePathError):
                     safe_join(selected_root, "../outside/source.txt", allow_missing=True)
 
