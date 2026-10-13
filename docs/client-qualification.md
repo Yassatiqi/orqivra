@@ -16,4 +16,4 @@ Do not use production data or install into a user-wide skills directory for qual
 
 ## Current status
 
-For this release, static format checks and asset rendering are recorded separately from actual client activation. Codex, Claude Code, and Gemini CLI remain `NOT_RUN` until a real discovery and activation session is recorded. Local availability of a client executable is not activation evidence. GitHub Actions is also `NOT_RUN` until a workflow run is observed on GitHub.
+For this release, static format checks and asset rendering are recorded separately from actual client activation. Codex, Claude Code, and Gemini CLI remain `NOT_RUN` until a real discovery and activation session is recorded. Local availability of a client executable is not activation evidence. The GitHub Actions result is `NOT_OBSERVED`: the source push succeeded, but the available GitHub interfaces did not expose a run status. A configured or queued workflow is not a pass.

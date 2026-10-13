@@ -16,7 +16,7 @@ The local results below apply only to the named runtime versions and artifacts. 
 
 | Check | Result | Limit |
 |---|---|---|
-| Python suite | `PASS`: 45 tests on Python 3.13.2; 43 passed and 2 symlink tests skipped because Windows denied symlink creation | Real Windows junction tests executed, including explicit-root relocation. Python 3.11 qualification remains `UNRESOLVED`; Python 3.13 does not qualify 3.11. |
+| Python suite | `PASS`: 48 tests on Python 3.13.2; 46 passed and 2 symlink tests skipped because Windows denied symlink creation | Real Windows junction tests executed, including explicit-root relocation. Python 3.11 qualification remains `UNRESOLVED`; Python 3.13 does not qualify 3.11. |
 | Node suite | `PASS`: 23 tests on Node.js 24.20.0 | Applies to this Node version and package snapshot. |
 | Shared Python/Node parity | `PASS`: 22 checks, 0 skipped | Includes state handoff, install/uninstall interoperability, Unicode, directory inputs, and real Windows junction root replacement. |
 | npm artifact install | `PASS` outside the checkout with Python absent from `PATH` | Rebuilt local tarball smoke check; registry ownership and publication eligibility were not tested. |
@@ -24,7 +24,7 @@ The local results below apply only to the named runtime versions and artifacts. 
 | Codex skill activation | `NOT_RUN` | Presence of the Codex app or CLI is not evidence that these skills activated. |
 | Claude Code skill activation | `NOT_RUN` | An unavailable command is not a pass. |
 | Gemini CLI skill activation | `NOT_RUN` | An unavailable command is not a pass. |
-| GitHub Actions | `NOT_RUN` | Local workflow checks are not a GitHub Actions run. |
+| GitHub Actions | `NOT_OBSERVED` | The source push succeeded, but the Actions run status was not accessible through the available GitHub interfaces. A configured or queued workflow is not a pass. |
 | GitHub private vulnerability reporting | External checklist item | No setting change or private-reporting claim is made. |
 | npm and PyPI live registry access | `UNAVAILABLE` | Read-only requests could not connect from this environment; account eligibility remains unchecked. |
 
