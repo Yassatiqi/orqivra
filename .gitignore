@@ -29,6 +29,12 @@ coverage/
 /build/
 /dist/
 
+# ORQIVRA package and source archives
+orqivra-*.zip
+orqivra-*.whl
+orqivra-*.tgz
+orqivra-*.tar.gz
+
 # Local configuration and operating-system/editor debris
 .env
 .env.*
