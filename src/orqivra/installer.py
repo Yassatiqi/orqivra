@@ -35,12 +35,12 @@ def source_root() -> Path:
     if configured:
         candidates.insert(0, Path(configured))
     for candidate in candidates:
-        if (candidate / "editions").is_dir() and (candidate / "schemas").is_dir() and (candidate / "skills").is_dir():
+        if all((candidate / name).is_dir() for name in ("editions", "schemas", "skills", "profiles", "defaults", "models")):
             return candidate
     import sysconfig
 
     installed = Path(sysconfig.get_path("data")) / "share" / "orqivra"
-    if (installed / "editions").is_dir() and (installed / "skills").is_dir():
+    if all((installed / name).is_dir() for name in ("editions", "schemas", "skills", "profiles", "defaults", "models")):
         return installed
     raise InputOutputError("ORQIVRA edition resources were not found in this installation.")
 
@@ -191,7 +191,9 @@ def _bundle_files(edition: str, output: Path) -> dict[str, str]:
     adapter = load_json(edition_root / "adapter.json")
     native_path = Path(adapter["native_skills_path"])
     profile = root / "profiles" / f"{edition}.json"
-    require_valid(load_json(profile), "profile.schema.json")
+    profile_data = load_json(profile)
+    profile_schema = "profile-v2.schema.json" if profile_data.get("schema_version") == 2 else "profile.schema.json"
+    require_valid(profile_data, profile_schema)
     hashes: dict[str, str] = {}
     for name, text in rendered.items():
         relative = native_path / name / "SKILL.md"
@@ -204,6 +206,8 @@ def _bundle_files(edition: str, output: Path) -> dict[str, str]:
         (Path("profiles") / profile.name, profile),
         (Path("contracts") / "capabilities.md", root / "core" / "contracts" / "capabilities.md"),
         (Path("editions") / edition / "adapter.json", edition_root / "adapter.json"),
+        (Path("defaults") / "config.json", root / "defaults" / "config.json"),
+        (Path("models") / "catalog.json", root / "models" / "catalog.json"),
         (Path("LICENSE"), root / "LICENSE"),
     ):
         hashes[name.as_posix()] = _copy_regular_file(source, output / name)

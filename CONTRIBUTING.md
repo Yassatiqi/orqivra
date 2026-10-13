@@ -8,11 +8,10 @@ Python development requires Python 3.11 or newer. Create a local environment and
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e .
+.\.venv\Scripts\python.exe -m pip install -e .
 ```
 
-On Unix, use `source .venv/bin/activate` after creating the environment. The npm implementation requires Node.js 24 or newer:
+On Windows, call `.venv\Scripts\python.exe` directly or activate the environment using normal authorized PowerShell execution. Do not lower or bypass an execution policy for this project. On Unix, use `source .venv/bin/activate` after creating the environment. The npm implementation requires Node.js 24 or newer:
 
 ```text
 npm ci --prefix node
@@ -20,9 +19,9 @@ npm ci --prefix node
 
 ## Changes
 
-- Keep shared contracts provider-neutral. Put model identifiers and client-specific metadata only in edition profiles.
+- Keep shared capability contracts provider-neutral. Maintain default configuration in `defaults/`, versioned model documentation in `models/`, and active edition model mappings in `profiles/`.
 - Keep the Python and TypeScript implementations independent; neither may invoke the other runtime.
-- Treat `skills/`, `editions/`, `profiles/`, `schemas/`, `core/contracts/`, and `tests/parity/` as canonical shared inputs. Generate release assets instead of copying shared skill bodies or schemas by hand.
+- Treat `skills/`, `editions/`, `profiles/`, `defaults/`, `models/`, `schemas/`, `core/contracts/`, and `tests/parity/` as canonical shared inputs. Generate release assets and the portable online context instead of copying shared skill bodies or schemas by hand.
 - Keep each skill focused and self-contained. Load only the relevant references.
 - Preserve the public CLI contract in `docs/cli-contract.md` and JSON Schemas in `schemas/`.
 - Do not weaken a gate or attempt limit to make a result pass.
@@ -31,6 +30,7 @@ npm ci --prefix node
 - Preserve unrelated work and use explicit paths for install or uninstall.
 - Check licenses before adding third-party components. Do not copy inspiration source text or code.
 - Update documentation whenever runtime floors, package contents, public commands, or qualification results change.
+- After editing the marked portable-method section of the orchestration skill, regenerate `docs/online-llm-context.md` with `node tools/generate-online-context.mjs` and run `python -m unittest tests.test_online_context -v`.
 
 ## Verification
 

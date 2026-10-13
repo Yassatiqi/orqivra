@@ -21,9 +21,9 @@ from orqivra.installer import build, install, render_edition_skills, uninstall, 
 class InstallerAssetTests(unittest.TestCase):
     def test_all_editions_render_from_canonical_sources_and_validated_adapters(self) -> None:
         expected = {
-            "codex": [835, 897, 883, 864],
-            "claude-code": [828, 890, 876, 857],
-            "gemini-cli": [825, 887, 873, 854],
+            "codex": [835, 731, 883, 864],
+            "claude-code": [848, 744, 896, 877],
+            "gemini-cli": [823, 719, 871, 852],
         }
         for edition, word_counts in expected.items():
             with self.subTest(edition=edition):

@@ -11,6 +11,7 @@ from typing import Any
 from . import __version__
 from .dag import plan_hashes, read_dag, ready_frontier
 from .errors import OrqivraError
+from .config import config_show, load_project_config, markdown_show, resolve_edition
 from .installer import build, install, skills_root, uninstall, validate_skills, verify_install
 from .schema import load_json, require_valid
 from .state import (
@@ -53,6 +54,15 @@ def _build_parser() -> argparse.ArgumentParser:
     profile_parser.add_argument("path", type=Path)
     skills_parser = validate_kinds.add_parser("skills")
     skills_parser.add_argument("path", type=Path)
+
+    config_parser = commands.add_parser("config", help="Validate or display effective local workflow configuration")
+    config_commands = config_parser.add_subparsers(dest="config_action", required=True)
+    config_validate = config_commands.add_parser("validate", help="Validate discovered or explicitly selected configuration")
+    config_validate.add_argument("--config", type=Path, help="Explicit configuration file (missing files are errors)")
+    config_show_parser = config_commands.add_parser("show", help="Show effective advisory profile and workflow settings")
+    config_show_parser.add_argument("--edition", required=True, choices=["codex", "claude-code", "gemini-cli"])
+    config_show_parser.add_argument("--config", type=Path, help="Explicit configuration file (missing files are errors)")
+    config_show_parser.add_argument("--format", choices=["json", "markdown"], default="json")
 
     plan_parser = commands.add_parser("plan", help="Validate a DAG and print its deterministic READY frontier")
     plan_parser.add_argument("dag", type=Path)
@@ -164,7 +174,10 @@ def _validate(args: argparse.Namespace) -> Any:
         return {"valid": True, "kind": "dag", "id": dag["id"], "node_count": len(dag["nodes"]), "snapshot_inputs": snapshot}
     if args.kind == "profile":
         profile = load_json(args.path)
-        require_valid(profile, "profile.schema.json")
+        if not isinstance(profile, dict):
+            raise OrqivraError("Profile data must be a JSON object.")
+        profile_schema = "profile-v2.schema.json" if profile.get("schema_version") == 2 else "profile.schema.json"
+        require_valid(profile, profile_schema)
         return {"valid": True, "kind": "profile", "id": profile["id"], "edition": profile["edition"]}
     found_root = skills_root(args.path)
     return {"valid": True, "kind": "skills", **validate_skills(found_root)}
@@ -211,7 +224,27 @@ def _markdown_report(report: dict[str, Any]) -> str:
 
 
 def _run(args: argparse.Namespace) -> int:
-    if args.command == "validate":
+    if args.command == "config" and args.config_action == "validate":
+        config, source = load_project_config(args.config)
+        # The schema permits partial role settings. Resolve each edition too,
+        # so model/provider/reasoning conflicts are reported before use.
+        resolved = []
+        for edition in ("codex", "claude-code", "gemini-cli"):
+            resolved.append(resolve_edition(config, edition))
+        _emit({
+            "valid": True,
+            "config_source": source,
+            "schema_version": 1,
+            "workflow": resolved[0]["workflow"],
+            "fallback": resolved[0]["fallback"],
+        })
+    elif args.command == "config" and args.config_action == "show":
+        result = config_show(args.config, args.edition)
+        if args.format == "markdown":
+            print(markdown_show(result), end="")
+        else:
+            _emit(result)
+    elif args.command == "validate":
         _emit(_validate(args))
     elif args.command == "plan":
         dag = read_dag(args.dag)

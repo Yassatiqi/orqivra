@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orqivra"
-version = "0.2.0"
+version = "0.3.0"
 description = "A local, provider-independent engineering workflow framework for AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -36,6 +36,8 @@ where = ["src"]
 [tool.setuptools.data-files]
 "share/orqivra" = ["LICENSE"]
 "share/orqivra/schemas" = ["schemas/*.json"]
+"share/orqivra/defaults" = ["defaults/*.json"]
+"share/orqivra/models" = ["models/*.json"]
 "share/orqivra/core/contracts" = ["core/contracts/*.md"]
 "share/orqivra/profiles" = ["profiles/*.json"]
 "share/orqivra/skills/orqivra-architecture" = ["skills/orqivra-architecture/SKILL.md"]

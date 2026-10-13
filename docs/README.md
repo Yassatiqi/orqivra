@@ -4,6 +4,7 @@
 - [Installation](installation.md): build local artifacts, install skills, and troubleshoot PATH or discovery issues.
 - [Architecture](architecture.md): shared contracts, snapshots, file safety, and runtime boundaries.
 - [CLI contract](cli-contract.md): commands, state transitions, errors, and interoperability.
+- [Configuration and model profiles](compatibility.md#configuration-and-model-profiles): defaults, inheritance, model catalog, and client-owned behavior.
 - [Compatibility](compatibility.md): declared runtimes and observed qualification status.
 - [Client qualification](client-qualification.md): test discovery and activation without changing global permissions.
 - [Security](security.md): reporting, path, evidence, and installation boundaries.

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/profile-v2.schema.json",
+  "title": "ORQIVRA Catalog-Linked Model Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "catalog_version", "id", "edition", "roles"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "catalog_version": {"type": "string", "minLength": 1},
+    "id": {"type": "string", "minLength": 1},
+    "edition": {"enum": ["codex", "claude-code", "gemini-cli"]},
+    "roles": {
+      "type": "object",
+      "required": ["orchestrator", "implementer", "complex_implementer", "reviewer"],
+      "additionalProperties": false,
+      "properties": {
+        "orchestrator": {"$ref": "#/$defs/role"},
+        "implementer": {"$ref": "#/$defs/role"},
+        "complex_implementer": {"$ref": "#/$defs/role"},
+        "reviewer": {"$ref": "#/$defs/role"}
+      }
+    }
+  },
+  "$defs": {
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "model_source", "reasoning", "activatable", "qualification"],
+      "properties": {
+        "provider": {"enum": ["openai", "anthropic", "google"]},
+        "model": {"type": "string", "minLength": 1},
+        "model_source": {"const": "catalog"},
+        "reasoning": {
+          "type": ["null", "object"],
+          "additionalProperties": false,
+          "required": ["control", "value"],
+          "properties": {
+            "control": {"enum": ["codex.model_reasoning_effort", "claude-code.effort"]},
+            "value": {"type": "string", "minLength": 1}
+          }
+        },
+        "activatable": {"const": false},
+        "qualification": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

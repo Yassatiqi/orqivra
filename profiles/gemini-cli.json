@@ -1,35 +1,12 @@
 {
-  "schema_version": 1,
-  "id": "gemini-cli-unresolved-sample",
+  "schema_version": 2,
+  "catalog_version": "2026-10-13",
+  "id": "auto-pro-gemini-cli",
   "edition": "gemini-cli",
   "roles": {
-    "orchestrator": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied gemini-cli model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    },
-    "implementer": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied gemini-cli model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    },
-    "complex_implementer": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied gemini-cli model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    },
-    "reviewer": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied gemini-cli model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    }
+    "orchestrator": {"provider": "google", "model": "auto", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved client-owned Auto route; selected backend and account access are NOT_RUN. Gemini CLI routing and fallback remain client-controlled."},
+    "implementer": {"provider": "google", "model": "auto", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved client-owned Auto route; selected backend and account access are NOT_RUN. Gemini CLI routing and fallback remain client-controlled."},
+    "complex_implementer": {"provider": "google", "model": "gemini-3.1-pro-preview", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved preview candidate; direct launch is documented but account rollout/access is conditional and activation is NOT_RUN. Gemini CLI native routing/fallback remains available."},
+    "reviewer": {"provider": "google", "model": "auto", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved client-owned Auto route; selected backend and account access are NOT_RUN. Gemini CLI routing and fallback remain client-controlled."}
   }
 }

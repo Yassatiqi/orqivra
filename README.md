@@ -8,10 +8,10 @@ Install one distribution so `orqivra` resolves to one installation:
 
 | Distribution | Runtime | Local artifact installation |
 |---|---|---|
-| npm | Node.js 24+ | `npm install --global ./orqivra-0.2.0.tgz` |
-| pipx | Python 3.11+ | `pipx install ./orqivra-0.2.0-py3-none-any.whl` |
+| npm | Node.js 24+ | `npm install --global ./orqivra-0.3.0.tgz` |
+| pipx | Python 3.11+ | `pipx install ./orqivra-0.3.0-py3-none-any.whl` |
 
-These are local artifact examples. This release has not been published to npm or PyPI. See [installation](docs/installation.md) for building artifacts, installing from a checkout, and troubleshooting.
+These are local pre-release artifact examples. Version 0.3.0 is not published to npm or PyPI and is not fully qualified for publication. See [installation](docs/installation.md) for building artifacts, installing from a checkout, and troubleshooting.
 
 ## Try a workflow
 
@@ -22,7 +22,7 @@ orqivra validate dag examples/solo-change.json
 orqivra plan examples/independent-branches.json
 ```
 
-The [quickstart](docs/quickstart.md) creates a disposable project and initializes a state report. The [examples guide](examples/README.md) shows correction and interruption recovery. Do not accept a node while its active evidence is stale; input changes require checks and recovery while preserving attempt counters.
+The [quickstart](docs/quickstart.md) creates a disposable project and initializes a state report. It also shows how to inspect edition profiles and validate optional project configuration. A missing discovered `orqivra.config.json` uses defaults; a missing file explicitly selected with `--config` is an error. The [examples guide](examples/README.md) shows correction and interruption recovery. Do not accept a node while its active evidence is stale; input changes require checks and recovery while preserving attempt counters.
 
 ## Client skills
 
@@ -44,4 +44,4 @@ python -m orqivra.cli --help
 npm.cmd test --prefix node
 ```
 
-Use [documentation](docs/README.md) for architecture, CLI details, security boundaries, and the release checklist. Current per-runtime and client qualification evidence is maintained locally under ignored `scratch/`, not presented as a public release claim. ORQIVRA is MIT-licensed; third-party components and package boundaries are described in [the security model](docs/security.md).
+Use [documentation](docs/README.md) for architecture, CLI details, security boundaries, and the release checklist. Python 3.11 Windows junction qualification, client activation, GitHub Actions, registry ownership, and private vulnerability reporting remain unresolved until observed. Current per-runtime and client qualification evidence is maintained locally under ignored `scratch/`, not presented as a public release claim. ORQIVRA is MIT-licensed; third-party components and package boundaries are described in [the security model](docs/security.md).

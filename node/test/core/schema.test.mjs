@@ -22,7 +22,15 @@ test('the schema engine validates representative instances for every shipped sch
     ['edition-adapter.schema.json', readJson(resolve(repositoryRoot, 'editions/codex/adapter.json'))],
     ['evidence.schema.json', { id: 'A-evidence-1', command: 'test', exit_code: 0, snapshot: `sha256:${zeroHash}`, recorded_at: '2026-10-12T10:00:00Z', artifacts: [] }],
     ['gate.schema.json', { id: 'external', description: 'External check.', required: true, status: 'NOT_RUN', evidence: [] }],
-    ['profile.schema.json', readJson(resolve(repositoryRoot, 'profiles/codex.json'))],
+    ['config.schema.json', { schema_version: 1 }],
+    ['model-catalog.schema.json', readJson(resolve(repositoryRoot, 'models/catalog.json'))],
+    ['profile-v2.schema.json', readJson(resolve(repositoryRoot, 'profiles/codex.json'))],
+    ['profile.schema.json', {
+      schema_version: 1, id: 'legacy-profile', edition: 'codex',
+      roles: Object.fromEntries(['orchestrator', 'implementer', 'complex_implementer', 'reviewer'].map((role) => [role, {
+        provider: 'openai', model: 'gpt-5.6-sol', effort: 'high', activatable: false,
+      }])),
+    }],
     ['project.schema.json', fixture('valid-project.json')],
     ['skill.schema.json', { name: 'example-skill', description: 'An example skill.' }],
     ['state.schema.json', {
@@ -45,7 +53,7 @@ test('schema engine rejects unsupported keywords instead of silently ignoring th
   const directory = mkdtempSync(resolve(tmpdir(), 'orqivra unsupported schema keyword '));
   const priorDataDir = process.env.ORQIVRA_DATA_DIR;
   try {
-    for (const name of ['schemas', 'profiles', 'skills', 'editions']) mkdirSync(resolve(directory, name));
+    for (const name of ['schemas', 'profiles', 'skills', 'editions', 'defaults', 'models']) mkdirSync(resolve(directory, name));
     writeFileSync(resolve(directory, 'schemas', 'unsupported.schema.json'), JSON.stringify({
       type: 'object',
       properties: { name: { oneOf: [{ type: 'string' }, { type: 'number' }] } },

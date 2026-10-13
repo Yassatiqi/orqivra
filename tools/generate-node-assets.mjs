@@ -52,6 +52,8 @@ const copies = [
   ['core/contracts/capabilities.md', 'contracts/capabilities.md'],
   ['LICENSE', 'ORQIVRA-LICENSE.txt'],
   ['README.md', 'README.md'],
+  ['defaults/config.json', 'defaults/config.json'],
+  ['models/catalog.json', 'models/catalog.json'],
 ];
 
 for (const entry of await readdir(join(root, 'schemas'), { withFileTypes: true })) {

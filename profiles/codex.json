@@ -1,35 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "catalog_version": "2026-10-13",
   "id": "astra-advisor-codex",
   "edition": "codex",
   "roles": {
-    "orchestrator": {
-      "provider": "openai",
-      "model": "gpt-6-astra",
-      "effort": "high",
-      "activatable": false,
-      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
-    },
-    "implementer": {
-      "provider": "openai",
-      "model": "gpt-6-luna",
-      "effort": "max",
-      "activatable": false,
-      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
-    },
-    "complex_implementer": {
-      "provider": "openai",
-      "model": "gpt-6-sol",
-      "effort": "xhigh",
-      "activatable": false,
-      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
-    },
-    "reviewer": {
-      "provider": "openai",
-      "model": "gpt-6-sol",
-      "effort": "high",
-      "activatable": false,
-      "qualification": "Requested profile value; unvalidated and non-activatable until verified in the target Codex runtime."
-    }
+    "orchestrator": {"provider": "openai", "model": "gpt-6-astra", "model_source": "catalog", "reasoning": {"control": "codex.model_reasoning_effort", "value": "high"}, "activatable": false, "qualification": "Preserved approved Codex profile value; target client/account and model-effort compatibility remain unqualified."},
+    "implementer": {"provider": "openai", "model": "gpt-6-luna", "model_source": "catalog", "reasoning": {"control": "codex.model_reasoning_effort", "value": "max"}, "activatable": false, "qualification": "Preserved approved Codex profile value; target client/account and model-effort compatibility remain unqualified."},
+    "complex_implementer": {"provider": "openai", "model": "gpt-6-sol", "model_source": "catalog", "reasoning": {"control": "codex.model_reasoning_effort", "value": "xhigh"}, "activatable": false, "qualification": "Preserved approved Codex profile value; target client/account and model-effort compatibility remain unqualified."},
+    "reviewer": {"provider": "openai", "model": "gpt-6-sol", "model_source": "catalog", "reasoning": {"control": "codex.model_reasoning_effort", "value": "high"}, "activatable": false, "qualification": "Preserved approved Codex profile value; target client/account and model-effort compatibility remain unqualified."}
   }
 }

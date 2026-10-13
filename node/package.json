@@ -1,6 +1,6 @@
 {
   "name": "orqivra",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A local, provider-independent engineering workflow CLI for AI agents",
   "homepage": "https://github.com/Yassatiqi/orqivra#readme",
   "repository": {

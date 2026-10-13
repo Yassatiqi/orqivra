@@ -24,7 +24,7 @@ export function assetRoot(): string {
 
 function isAssetRoot(path: string): boolean {
   try {
-    return ['schemas', 'profiles', 'skills', 'editions'].every((name) => {
+    return ['schemas', 'profiles', 'skills', 'editions', 'defaults', 'models'].every((name) => {
       const candidate = resolve(path, name);
       return existsSync(candidate) && statSync(candidate).isDirectory();
     });

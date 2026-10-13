@@ -4,6 +4,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { readDag, planHashes, readyFrontier } from './core/dag.js';
 import { OrqivraError } from './core/errors.js';
+import { markdownConfig, resolveConfiguration, validateProjectConfig } from './core/config.js';
 import { JsonObject, JsonValue, readJson } from './core/json.js';
 import { safeJoin, safeRelativePath } from './core/paths.js';
 import { isObject, requireValid } from './core/schema.js';
@@ -17,6 +18,8 @@ const USAGE = `Usage: orqivra <command> [options]
 
 Commands:
   validate project|dag|profile|skills PATH
+  config validate [--config PATH]
+  config show --edition codex|claude-code|gemini-cli [--config PATH] [--format json|markdown]
   plan DAG [--state PATH]
   state init DAG --state PATH [--project-root DIR]
   state transition --state PATH NODE --to STATUS --reason TEXT
@@ -63,6 +66,21 @@ export function main(argv = process.argv.slice(2)): number {
 function execute(argv: string[]): JsonValue | string {
   const [command, action, ...remaining] = argv;
   if (command === 'validate') return validateCommand(action, remaining);
+  if (command === 'config') {
+    if (action === 'validate') {
+      const parsed = parse(remaining, { config: 'string' }, 0);
+      return validateProjectConfig(stringValue(parsed.values.config));
+    }
+    if (action === 'show') {
+      const parsed = parse(remaining, { config: 'string', edition: 'string', format: 'string' }, 0);
+      const edition = requiredOption(parsed, 'edition');
+      const format = stringValue(parsed.values.format) ?? 'json';
+      if (!['json', 'markdown'].includes(format)) throw new OrqivraError('--format must be json or markdown.');
+      const result = resolveConfiguration(edition, stringValue(parsed.values.config));
+      return format === 'markdown' ? markdownConfig(result) : result;
+    }
+    throw new OrqivraError('Expected config action validate or show.');
+  }
   if (command === 'plan') {
     const parsed = parse(argv.slice(1), { state: 'string' }, 1);
     const dag = readDag(parsed.positionals[0]);
@@ -156,8 +174,8 @@ function validateCommand(kind: string | undefined, args: string[]): JsonObject {
   }
   if (kind === 'profile') {
     const profile = readJson(path);
-    requireValid(profile, 'profile.schema.json');
     if (!isObject(profile)) throw new OrqivraError('Profile must be a JSON object.');
+    requireValid(profile, profile.schema_version === 2 ? 'profile-v2.schema.json' : 'profile.schema.json');
     return { valid: true, kind, id: profile.id, edition: profile.edition };
   }
   if (kind === 'skills') return { valid: true, kind, ...validateSkills(path) };
@@ -256,6 +274,8 @@ function compareText(left: string, right: string): number {
 
 function commandHelp(command?: string, action?: string): string {
   if (command === 'validate') return 'Usage: orqivra validate project|dag|profile|skills PATH [--project PROJECT]\n';
+  if (command === 'config' && action === 'validate') return 'Usage: orqivra config validate [--config PATH]\n';
+  if (command === 'config' && action === 'show') return 'Usage: orqivra config show --edition codex|claude-code|gemini-cli [--config PATH] [--format json|markdown]\n';
   if (command === 'state' && action === 'init') return 'Usage: orqivra state init DAG --state PATH [--project-root DIR]\n';
   if (command === 'state' && action === 'transition') return 'Usage: orqivra state transition --state PATH NODE --to STATUS --reason TEXT\n';
   if (command === 'attempt') return 'Usage: orqivra attempt begin|diagnose|record-change|verify --state PATH NODE [options]\n';

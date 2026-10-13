@@ -1,35 +1,12 @@
 {
-  "schema_version": 1,
-  "id": "claude-code-unresolved-sample",
+  "schema_version": 2,
+  "catalog_version": "2026-10-13",
+  "id": "sonnet-opus-claude-code",
   "edition": "claude-code",
   "roles": {
-    "orchestrator": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    },
-    "implementer": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    },
-    "complex_implementer": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    },
-    "reviewer": {
-      "provider": "user-supplied",
-      "model": null,
-      "effort": null,
-      "activatable": false,
-      "qualification": "Unresolved user-supplied claude-code model and provider-native effort values are required; no reasoning-effort equivalent is assumed. Keep this role non-activatable until the user resolves it."
-    }
+    "orchestrator": {"provider": "anthropic", "model": "claude-sonnet-5-5", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved routine model; client/account activation is NOT_RUN. No effort override; Claude Code native default applies."},
+    "implementer": {"provider": "anthropic", "model": "claude-sonnet-5-5", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved routine model; client/account activation is NOT_RUN. No effort override; Claude Code native default applies."},
+    "complex_implementer": {"provider": "anthropic", "model": "claude-opus-5-5", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved complex-work model; client/account activation is NOT_RUN. No effort override; Claude Code native default applies."},
+    "reviewer": {"provider": "anthropic", "model": "claude-sonnet-5-5", "model_source": "catalog", "reasoning": null, "activatable": false, "qualification": "Approved routine model; client/account activation is NOT_RUN. No effort override; Claude Code native default applies."}
   }
 }

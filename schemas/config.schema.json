@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://orqivra.dev/schemas/config.schema.json",
+  "title": "ORQIVRA Project Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferred_route": {"enum": ["recommend", "solo", "delegate", "audit", "full"]},
+        "preferred_parallelism": {"type": "integer", "minimum": 1, "maximum": 8}
+      }
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"policy": {"const": "none"}}
+    },
+    "editions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codex": {"$ref": "#/$defs/edition"},
+        "claude-code": {"$ref": "#/$defs/edition"},
+        "gemini-cli": {"$ref": "#/$defs/edition"}
+      }
+    }
+  },
+  "$defs": {
+    "edition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "roles": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "orchestrator": {"$ref": "#/$defs/role"},
+            "implementer": {"$ref": "#/$defs/role"},
+            "complex_implementer": {"$ref": "#/$defs/role"},
+            "reviewer": {"$ref": "#/$defs/role"}
+          }
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {"type": ["string", "null"]},
+        "model": {"type": ["string", "null"]},
+        "model_source": {"enum": ["catalog", "user-supplied"]},
+        "reasoning": {
+          "type": ["null", "object"],
+          "additionalProperties": false,
+          "required": ["control", "value"],
+          "properties": {
+            "control": {"enum": ["codex.model_reasoning_effort", "claude-code.effort"]},
+            "value": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

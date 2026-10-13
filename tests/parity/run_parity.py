@@ -77,6 +77,94 @@ class Harness:
     def record(self, name: str) -> None:
         self.passed.append(name)
 
+    def run_config_interop(self, directory: Path) -> None:
+        config_root = directory / "config interop"
+        config_root.mkdir(parents=True)
+
+        def compare_show(edition: str, config: Path | None = None, cwd: Path | None = None) -> Any:
+            args = ["config", "show", "--edition", edition]
+            if config is not None:
+                args.extend(["--config", str(config)])
+            python_result = self.successful_json("python", args, cwd=cwd)
+            node_result = self.successful_json("node", args, cwd=cwd)
+            if python_result != node_result:
+                raise ParityFailure(f"config show differs for {edition}: Python={python_result!r}; Node={node_result!r}")
+            return python_result
+
+        missing = compare_show("codex", cwd=config_root)
+        if missing["config_source"] != {"kind": "defaults", "path": None}:
+            raise ParityFailure("An absent auto-discovered config did not select packaged defaults.")
+        if missing["workflow"]["preferred_parallelism"] != 2 or missing["workflow"]["preferred_parallelism_advisory"] is not True:
+            raise ParityFailure("The shared default parallelism is not the advisory maximum of two.")
+
+        discovered = config_root / "orqivra.config.json"
+        discovered.write_text("{}\n", encoding="utf-8")
+        empty_object = compare_show("claude-code", cwd=config_root)
+        if empty_object["config_source"] != {"kind": "file", "path": "orqivra.config.json"}:
+            raise ParityFailure("An empty auto-discovered object did not retain default inheritance.")
+
+        explicit_empty = config_root / "explicit-empty.json"
+        explicit_empty.write_text(" \r\n\t", encoding="utf-8")
+        inherited = compare_show("gemini-cli", config=explicit_empty, cwd=config_root)
+        if inherited["workflow"]["preferred_parallelism"] != 2:
+            raise ParityFailure("An explicit whitespace-only config did not inherit packaged defaults.")
+
+        empty_override = config_root / "empty-override.json"
+        empty_override.write_text(json.dumps({"editions": {"claude-code": {"roles": {
+            "implementer": {"provider": "", "model": ""}
+        }}}}), encoding="utf-8")
+        empty_override_result = compare_show("claude-code", config=empty_override, cwd=config_root)
+        if empty_override_result["roles"] != empty_object["roles"]:
+            raise ParityFailure("Empty provider/model strings no longer inherit the edition profile values.")
+
+        validate_args = ["config", "validate"]
+        python_validate = self.successful_json("python", validate_args, cwd=config_root)
+        node_validate = self.successful_json("node", validate_args, cwd=config_root)
+        if python_validate != node_validate:
+            raise ParityFailure(f"config validate differs: Python={python_validate!r}; Node={node_validate!r}")
+        if set(python_validate) != {"valid", "config_source", "schema_version", "workflow", "fallback"}:
+            raise ParityFailure(f"config validate returned an unexpected public shape: {python_validate!r}")
+        if python_validate["config_source"] != {"kind": "file", "path": "orqivra.config.json"}:
+            raise ParityFailure("config validate did not identify the discovered config file consistently.")
+
+        non_object_profile = config_root / "non-object-profile.json"
+        non_object_profile.write_text("[]\n", encoding="utf-8")
+        for runtime in ("python", "node"):
+            result = self.expect_exit(runtime, ["validate", "profile", str(non_object_profile)], 2, cwd=config_root)
+            diagnostic = f"{result.stdout}\n{result.stderr}".lower()
+            if "profile" not in diagnostic or "traceback" in diagnostic:
+                raise ParityFailure(f"{runtime} did not return a controlled non-object profile error: {diagnostic}")
+
+        custom = config_root / "custom-model.json"
+        custom.write_text(json.dumps({"editions": {"claude-code": {"roles": {
+            "implementer": {"model": "local-experiment", "model_source": "user-supplied", "reasoning": None}
+        }}}}), encoding="utf-8")
+        custom_result = compare_show("claude-code", config=custom, cwd=config_root)
+        custom_role = custom_result["roles"]["implementer"]
+        if custom_role["runtime_qualification"] != "UNVERIFIED" or custom_role["reasoning_resolution"] != "client-default":
+            raise ParityFailure("Custom-model provenance or explicit null reasoning did not resolve consistently.")
+
+        missing_explicit = config_root / "missing-explicit.json"
+        missing_args = ["config", "show", "--edition", "codex", "--config", str(missing_explicit)]
+        for runtime in ("python", "node"):
+            result = self.expect_exit(runtime, missing_args, 4, cwd=config_root)
+            diagnostic = f"{result.stdout}\n{result.stderr}".lower()
+            if "create" not in diagnostic or "--config" not in diagnostic:
+                raise ParityFailure(f"{runtime} explicit missing config error lacks an actionable recovery: {diagnostic}")
+
+        incompatible = config_root / "incompatible-reasoning.json"
+        incompatible.write_text(json.dumps({"editions": {"claude-code": {"roles": {
+            "implementer": {"reasoning": {"control": "claude-code.effort", "value": "extreme"}}
+        }}}}), encoding="utf-8")
+        invalid_args = ["config", "show", "--edition", "claude-code", "--config", str(incompatible)]
+        for runtime in ("python", "node"):
+            result = self.expect_exit(runtime, invalid_args, 2, cwd=config_root)
+            diagnostic = f"{result.stdout}\n{result.stderr}".lower()
+            if "editions.claude-code.roles.implementer.reasoning.value" not in diagnostic or "reasoning" not in diagnostic or "null" not in diagnostic:
+                raise ParityFailure(f"{runtime} incompatible reasoning error lacks path-specific recovery guidance: {diagnostic}")
+
+        self.record("config-discovery-default-inheritance-validate-shape-model-provenance-and-reasoning-parity")
+
     def run_shared_fixtures(self) -> None:
         cases = [*self.cases["validation_cases"], *self.cases["planning_cases"]]
         for case in cases:
@@ -541,6 +629,7 @@ class Harness:
             raise ParityFailure(f"Node CLI build is missing: {NODE_CLI}; run npm test --prefix node first")
         with tempfile.TemporaryDirectory(prefix="orqivra parity project ") as temporary:
             directory = Path(temporary)
+            self.run_config_interop(directory)
             self.run_shared_fixtures()
             self.run_state_handoff(directory, initial_runtime="python")
             self.run_state_handoff(directory, initial_runtime="node")

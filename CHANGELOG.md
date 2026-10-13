@@ -1,5 +1,13 @@
 # Change Log
 
+## 0.3.0 - 2026-10-13
+
+- Added versioned project configuration defaults, strict schema, and catalog-linked profiles for Codex, Claude Code, and Gemini CLI.
+- Added catalog-backed model recommendations while keeping activation advisory and client-controlled; preserved all existing Codex profile choices.
+- Documented config discovery, inheritance, null reasoning, custom model qualification, advisory parallelism, and client-native routing/fallback limitations.
+- Kept Python and Node runtimes independent and packaged their defaults, schemas, and model catalog.
+- Left client activation, Python 3.11 Windows junction qualification, GitHub Actions observation, registry ownership, and private reporting unresolved where not exercised.
+
 ## 0.2.0 - 2026-10-12
 
 - Corrected cross-runtime root-boundary checks, regular-file input handling, and strict JSON Unicode validation.

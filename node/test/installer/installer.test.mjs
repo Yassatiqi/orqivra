@@ -8,9 +8,9 @@ import { buildBundle, installSkills, renderEditionSkills, uninstallSkills, valid
 
 test('canonical skills render into all three validated client editions', () => {
   const expected = new Map([
-    ['claude-code', [828, 890, 876, 857]],
-    ['codex', [835, 897, 883, 864]],
-    ['gemini-cli', [825, 887, 873, 854]],
+    ['claude-code', [848, 744, 896, 877]],
+    ['codex', [835, 731, 883, 864]],
+    ['gemini-cli', [823, 719, 871, 852]],
   ]);
   for (const [edition, words] of expected) {
     const { skills, adapter } = renderEditionSkills(edition);
@@ -30,7 +30,7 @@ test('bundle generation includes native skill paths, schemas, adapter data, and 
     const nativePaths = { codex: '.agents/skills', 'claude-code': '.claude/skills', 'gemini-cli': '.gemini/skills' };
     for (const path of built) {
       const edition = basename(path);
-      assert.ok(readFileSync(resolve(path, 'BUILD-MANIFEST.json'), 'utf8').includes('"framework_version": "0.2.0"'));
+      assert.ok(readFileSync(resolve(path, 'BUILD-MANIFEST.json'), 'utf8').includes('"framework_version": "0.3.0"'));
       assert.ok(readFileSync(resolve(path, 'LICENSE'), 'utf8').includes('Permission is hereby granted'));
       assert.ok(readFileSync(resolve(path, 'schemas', 'state.schema.json'), 'utf8').includes('ORQIVRA Session State'));
       assert.ok(readFileSync(resolve(path, 'editions', edition, 'adapter.json'), 'utf8').includes('native_skills_path'));

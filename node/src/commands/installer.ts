@@ -23,7 +23,7 @@ import { JsonObject, JsonValue, readJson, sha256Bytes } from '../core/json.js';
 import { rejectSymlinkComponents, rejectSymlinkPath, safeJoin, safeRelativePath, sha256File } from '../core/paths.js';
 import { isObject, requireValid, validateData } from '../core/schema.js';
 
-export const ORQIVRA_VERSION = '0.2.0';
+export const ORQIVRA_VERSION = '0.3.0';
 
 export const SKILL_NAMES = ['orqivra-architecture', 'orqivra-orchestrate', 'orqivra-recover', 'orqivra-verify'];
 export const EDITIONS = ['claude-code', 'codex', 'gemini-cli'];
@@ -264,7 +264,7 @@ function buildEdition(edition: string, output: string): Record<string, string> {
   const root = assetRoot();
   const { skills, adapter } = renderEditionSkills(edition);
   const profilePath = resolve(root, 'profiles', `${edition}.json`);
-  requireValid(readJson(profilePath), 'profile.schema.json');
+  requireValid(readJson(profilePath), 'profile-v2.schema.json');
   const nativePath = adapter.native_skills_path;
   const hashes = Object.create(null) as Record<string, string>;
   for (const skill of skills) {
@@ -273,6 +273,8 @@ function buildEdition(edition: string, output: string): Record<string, string> {
   }
   for (const [relativePath, candidates] of [
     [`profiles/${edition}.json`, [`profiles/${edition}.json`]],
+    ['defaults/config.json', ['defaults/config.json']],
+    ['models/catalog.json', ['models/catalog.json']],
     ['contracts/capabilities.md', ['contracts/capabilities.md', 'core/contracts/capabilities.md']],
     [`editions/${edition}/adapter.json`, [`editions/${edition}/adapter.json`]],
     ['LICENSE', ['LICENSE', 'ORQIVRA-LICENSE.txt']],

@@ -13,21 +13,21 @@ The npm implementation does not need Python. The Python implementation does not 
 
 ## Install a local artifact
 
-Install the npm tarball:
+Install the local npm pre-release tarball:
 
 ```powershell
-npm.cmd install --global C:\path\to\orqivra-0.2.0.tgz
+npm.cmd install --global C:\path\to\orqivra-0.3.0.tgz
 orqivra --help
 ```
 
 Install the Python wheel with pipx:
 
 ```powershell
-pipx install C:\path\to\orqivra-0.2.0-py3-none-any.whl
+pipx install C:\path\to\orqivra-0.3.0-py3-none-any.whl
 orqivra --help
 ```
 
-The Python source archive and a local source checkout can also be installed with pipx. These are local artifact commands; they do not publish packages or verify publisher account eligibility.
+The Python source archive and a local source checkout can also be installed with pipx. ORQIVRA 0.3.0 is a pre-release candidate, not a fully qualified package release. These are local artifact commands; they do not publish packages or verify publisher account eligibility.
 
 ## Build local release artifacts
 
@@ -48,7 +48,7 @@ python -m pip install build
 python -m build --outdir scratch/packages
 ```
 
-The generated Node `dist/` directory is excluded from Git but is required in the npm tarball. Python schemas, skills, profiles, adapters, and contracts are included in Python distributions. Always inspect both inventories and test installation outside the checkout.
+The generated Node `dist/` directory is excluded from Git but is required in the npm tarball. Python schemas, defaults, model catalog, skills, profiles, adapters, and contracts are included in Python distributions. Always inspect both inventories and test installation outside the checkout, with the other runtime unavailable.
 
 ## Install client skills
 
@@ -73,7 +73,8 @@ The canonical source tree contains shared skill bodies, not pre-created native d
 - **The wrong `orqivra` runs:** use `Get-Command orqivra -All` in PowerShell or `type -a orqivra` in POSIX shells, then remove PATH ambiguity or use the intended environment's executable directly.
 - **The pipx command is missing from PATH:** run `pipx ensurepath` in the appropriate shell and open a new shell, or invoke the executable by its reported full path.
 - **A skill is not discovered:** verify the exact target and manifest with `orqivra verify-install`, then follow the client's documented workspace trust and skill reload steps. Installing a skill does not activate a model or grant permissions.
+- **Configuration is missing:** when `--config` is omitted, only a missing automatically discovered `orqivra.config.json` uses defaults. If you named a missing file with `--config PATH`, correct the path or create the file. An existing empty file or `{}` inherits defaults.
 
 ## After a public registry release
 
-Use `npm install --global orqivra@0.2.0` or `pipx install orqivra==0.2.0` only after the version is actually published and visible. Publication is a separate authorized action. Registry 404 responses do not reserve a package name.
+Use `npm install --global orqivra@0.3.0` or `pipx install orqivra==0.3.0` only after the version is actually published and visible. Publication is a separate authorized action. Registry 404 responses do not reserve a package name.

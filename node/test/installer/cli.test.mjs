@@ -46,7 +46,7 @@ test('standalone Node CLI implements the public validation, state, evidence, rep
     const help = runCli(['--help']);
     assert.equal(help.status, 0);
     assert.match(help.stdout, /Usage: orqivra/);
-    assert.equal(runCli(['--version']).stdout.trim(), 'orqivra 0.2.0');
+    assert.equal(runCli(['--version']).stdout.trim(), 'orqivra 0.3.0');
     assert.equal(jsonCommand(['validate', 'project', projectPath]).id, 'cli-project');
     assert.equal(jsonCommand(['validate', 'profile', resolve(assetsRoot, 'profiles', 'codex.json')]).edition, 'codex');
     assert.equal(jsonCommand(['validate', 'skills', resolve(assetsRoot, 'skills')]).count, 4);

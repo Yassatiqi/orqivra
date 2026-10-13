@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "version": "2026-10-13",
+  "sources": [
+    "https://developers.openai.com/codex/models",
+    "https://developers.openai.com/codex/config-reference",
+    "https://code.claude.com/docs/en/model-config",
+    "https://platform.claude.com/docs/en/models/overview",
+    "https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/gemini-3.md",
+    "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/model-routing.md",
+    "https://ai.google.dev/gemini-api/docs/models"
+  ],
+  "defaults": {
+    "codex": {
+      "orchestrator": "gpt-6-astra",
+      "implementer": "gpt-6-luna",
+      "complex_implementer": "gpt-6-sol",
+      "reviewer": "gpt-6-sol"
+    },
+    "claude-code": {
+      "orchestrator": "claude-sonnet-5-5",
+      "implementer": "claude-sonnet-5-5",
+      "complex_implementer": "claude-opus-5-5",
+      "reviewer": "claude-sonnet-5-5"
+    },
+    "gemini-cli": {
+      "orchestrator": "auto",
+      "implementer": "auto",
+      "complex_implementer": "gemini-3.1-pro-preview",
+      "reviewer": "auto"
+    }
+  },
+  "models": {
+    "gpt-6-astra": {
+      "provider": "openai", "edition": "codex", "status": "documented", "client_support": "documented", "opt_in": false,
+      "reasoning": {"control": "codex.model_reasoning_effort", "values": null, "default": null, "qualification": "Documented levels vary by model and client; runtime qualification is unresolved."}
+    },
+    "gpt-6-luna": {
+      "provider": "openai", "edition": "codex", "status": "documented", "client_support": "documented", "opt_in": false,
+      "reasoning": {"control": "codex.model_reasoning_effort", "values": null, "default": null, "qualification": "Documented levels vary by model and client; runtime qualification is unresolved."}
+    },
+    "gpt-6-sol": {
+      "provider": "openai", "edition": "codex", "status": "documented", "client_support": "documented", "opt_in": false,
+      "reasoning": {"control": "codex.model_reasoning_effort", "values": null, "default": null, "qualification": "Documented levels vary by model and client; runtime qualification is unresolved."}
+    },
+    "claude-sonnet-5-5": {
+      "provider": "anthropic", "edition": "claude-code", "status": "documented", "client_support": "Claude Code 2.1.284+", "opt_in": false,
+      "reasoning": {"control": "claude-code.effort", "values": ["low", "medium", "high", "xhigh", "max"], "default": null, "qualification": "The client default is intentionally used; current provider/client docs differ about Sonnet 5.5's default level."},
+      "native_fallback": "Claude Code can automatically route certain flagged requests to provider-native fallback models."
+    },
+    "claude-opus-5-5": {
+      "provider": "anthropic", "edition": "claude-code", "status": "documented", "client_support": "Claude Code 2.1.280+", "opt_in": false,
+      "reasoning": {"control": "claude-code.effort", "values": ["low", "medium", "high", "xhigh", "max"], "default": "medium", "qualification": "Default documented by Claude Code; runtime qualification is unresolved."},
+      "native_fallback": "Claude Code can automatically route certain flagged requests to provider-native fallback models."
+    },
+    "claude-fable-5-1": {
+      "provider": "anthropic", "edition": "claude-code", "status": "documented-opt-in", "client_support": "Claude Code 2.1.257+", "opt_in": true,
+      "reasoning": {"control": "claude-code.effort", "values": ["low", "medium", "high", "xhigh", "max"], "default": "high", "qualification": "Default documented by Claude Code; runtime and account qualification is unresolved."},
+      "native_fallback": "Claude Code may switch to a client-selected fallback following safety classification or unavailability."
+    },
+    "auto": {
+      "provider": "google", "edition": "gemini-cli", "status": "documented-selector", "client_support": "Gemini CLI; backend selected by client", "opt_in": false,
+      "reasoning": null,
+      "native_fallback": "Gemini CLI owns dynamic routing and fallback, including silent fallback for some internal utility calls."
+    },
+    "gemini-3.1-pro-preview": {
+      "provider": "google", "edition": "gemini-cli", "status": "preview", "client_support": "Gemini CLI direct launch and Manual selector for eligible accounts", "opt_in": false,
+      "reasoning": null,
+      "native_fallback": "Gemini CLI routing and internal utility fallback may remain active even when the main model is selected directly."
+    },
+    "gemini-3.8-flash": {
+      "provider": "google", "edition": null, "status": "stable-api", "client_support": "API documented; CLI support unresolved", "opt_in": true,
+      "reasoning": null,
+      "qualification": "Do not select as a Gemini CLI model until supported client documentation or actual execution establishes support."
+    }
+  }
+}

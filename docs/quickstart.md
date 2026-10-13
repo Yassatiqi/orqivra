@@ -32,6 +32,8 @@ If `python3` selects a version older than 3.11, use an installed supported inter
 
 The editable install and PATH update apply to this checkout and shell session. This route requires no Node.js or npm.
 
+The Python venv keeps the `orqivra` command on `PATH` for the workflow scripts. In a different shell, activate `.venv` again or prepend its `Scripts` (Windows) or `bin` (POSIX) directory to `PATH`. You can also run the Python CLI directly as `python -m orqivra.cli`; the Node route below has its own installed command and does not use Python.
+
 ## Node source setup
 
 Prerequisites: Node.js 24 or newer, npm, and network or package-cache access for the locked development dependencies. The npm implementation has no production dependencies. From the repository root, install its build tools, build the CLI, pack the built package, and install that package into a temporary prefix so npm exposes its `orqivra` command:
@@ -80,6 +82,53 @@ orqivra --help
 ```
 
 The temporary npm prefix and PATH update apply to this shell session. This route requires no Python. Remove the temporary prefix after use if desired.
+
+## Inspect an edition and configure a project
+
+Configuration is optional. With no `--config` argument, ORQIVRA looks for `orqivra.config.json` in the current directory. If that automatically discovered file is absent, built-in defaults apply. If you pass `--config PATH`, ORQIVRA reads that exact path and reports an actionable error if it is missing. An existing empty or whitespace-only file and `{}` both inherit the defaults.
+
+From either installed route, inspect the profile without changing client settings or making a provider request:
+
+```text
+orqivra config show --edition codex
+orqivra config show --edition claude-code --format markdown
+orqivra config validate
+```
+
+For a project-specific preference, create `orqivra.config.json` at the project root. A partial file inherits every omitted value:
+
+```json
+{
+  "schema_version": 1,
+  "workflow": {
+    "preferred_parallelism": 2
+  }
+}
+```
+
+Validate a selected file explicitly with `orqivra config validate --config ./orqivra.config.json`. Preferred parallelism is an advisory maximum, not a promise of that many workers. Actual concurrency depends on available runtime capabilities and resources, dependency readiness, authorization, task independence, and disjoint ownership. The default route is `recommend`; the current task may still need to run solo.
+
+An omitted, null, or empty-string provider/model setting inherits the edition provider and base profile model. If reasoning is omitted and the model is unchanged, the profile value remains. For Codex, the catalog does not enumerate supported reasoning values, so the setting is shown as `UNVERIFIED`, not documented compatibility. After a model change, inherited reasoning carries only when compatibility is known; otherwise validation explains how to select a compatible value or defer to the client with `"reasoning": null`. Explicit values are checked against catalog lists when available; an unenumerated value is accepted structurally and marked `UNVERIFIED`. Null clears the inherited preference and uses the selected model's documented client default where known, otherwise the client's own default. Unknown custom model IDs require `"model_source": "user-supplied"` and remain unqualified; ORQIVRA does not infer their supported reasoning controls.
+
+For example, when replacing a role's model but letting the client choose reasoning, use a null preference rather than keeping the old model's setting:
+
+```json
+{
+  "schema_version": 1,
+  "editions": {
+    "claude-code": {
+      "roles": {
+        "complex_implementer": {
+          "model": "claude-sonnet-5-5",
+          "reasoning": null
+        }
+      }
+    }
+  }
+}
+```
+
+The configuration is advisory. It does not switch the active model, alter account access, grant tools, change client permissions, or prevent provider/client-native routing or fallback. See [compatibility and qualification](compatibility.md#configuration-and-model-profiles).
 
 ## Run a disposable workflow
 
