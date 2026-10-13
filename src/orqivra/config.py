@@ -7,12 +7,13 @@ advice without invoking a provider or changing client settings.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from .errors import InputOutputError, OrqivraError
 from .installer import source_root
-from .schema import load_json, require_valid
+from .schema import load_json, require_valid, require_valid_config
 
 EDITIONS = ("codex", "claude-code", "gemini-cli")
 ROLES = ("orchestrator", "implementer", "complex_implementer", "reviewer")
@@ -22,6 +23,8 @@ CONTROL_FOR_PROVIDER = {
     "anthropic": "claude-code.effort",
     "google": None,
 }
+_CLIENT_MODEL_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+_CLIENT_EFFORT_TOKEN = re.compile(r"^[a-z][a-z0-9-]*$")
 
 
 def _parse_config_text(text: str, source: Path) -> Any:
@@ -31,7 +34,7 @@ def _parse_config_text(text: str, source: Path) -> Any:
         result: dict[str, Any] = {}
         for key, value in pairs:
             if key in result:
-                raise ValueError(f"Duplicate JSON object key: {key}")
+                raise ValueError("Duplicate JSON object key.")
             result[key] = value
         return result
 
@@ -42,22 +45,22 @@ def _parse_config_text(text: str, source: Path) -> Any:
         return value
 
     def reject_number(raw: str) -> Any:
-        raise ValueError(f"Fractional JSON numbers are not supported: {raw}")
+        raise ValueError("Fractional JSON numbers are not supported.")
 
     def reject_constant(raw: str) -> Any:
-        raise ValueError(f"Non-finite JSON numbers are not supported: {raw}")
+        raise ValueError("Non-finite JSON numbers are not supported.")
 
-    def reject_surrogates(value: Any, location: str = "$") -> None:
+    def reject_surrogates(value: Any) -> None:
         if isinstance(value, str):
             if any(0xD800 <= ord(char) <= 0xDFFF for char in value):
-                raise ValueError(f"Lone surrogate code point is not allowed at {location}.")
+                raise ValueError("Lone surrogate code point is not allowed.")
         elif isinstance(value, list):
-            for index, item in enumerate(value):
-                reject_surrogates(item, f"{location}/{index}")
+            for item in value:
+                reject_surrogates(item)
         elif isinstance(value, dict):
             for key, item in value.items():
-                reject_surrogates(key, f"{location}/<key>")
-                reject_surrogates(item, f"{location}/{key}")
+                reject_surrogates(key)
+                reject_surrogates(item)
 
     try:
         value = json.loads(
@@ -91,8 +94,10 @@ def _read_config_file(path: Path, *, explicit: bool) -> tuple[dict[str, Any], bo
         raise InputOutputError(f"Could not read configuration file {path}: {exc}") from exc
     except UnicodeDecodeError as exc:
         raise OrqivraError(f"Configuration file is not valid UTF-8: {path}: {exc}") from exc
+    if text.startswith("\ufeff"):
+        text = text[1:]
     value = {} if not text.strip() else _parse_config_text(text, path)
-    require_valid(value, "config.schema.json")
+    require_valid_config(value)
     return value, True
 
 
@@ -111,7 +116,7 @@ def load_project_config(config_path: Path | None, *, cwd: Path | None = None) ->
     root = source_root()
     defaults_path = root / "defaults" / "config.json"
     defaults = load_json(defaults_path)
-    require_valid(defaults, "config.schema.json")
+    require_valid_config(defaults)
     if config_path is None:
         discovered = (cwd or Path.cwd()) / "orqivra.config.json"
         override, discovered_config = _read_config_file(discovered, explicit=False)
@@ -120,7 +125,7 @@ def load_project_config(config_path: Path | None, *, cwd: Path | None = None) ->
         override, _ = _read_config_file(config_path, explicit=True)
         source = {"kind": "file", "path": str(config_path)}
     effective = _merge(defaults, override)
-    require_valid(effective, "config.schema.json")
+    require_valid_config(effective)
     return effective, source
 
 
@@ -149,15 +154,73 @@ def _role_config(config: dict[str, Any], edition: str, role: str) -> dict[str, A
     return config.get("editions", {}).get(edition, {}).get("roles", {}).get(role, {})
 
 
+def _client_application_guidance(
+    edition: str,
+    model: str,
+    reasoning: Any,
+    *,
+    model_source: str,
+    catalog_model: bool,
+) -> str:
+    if model_source == "user-supplied" or not catalog_model or not _CLIENT_MODEL_TOKEN.fullmatch(model):
+        selection = (
+            "Use the native client model picker or your provider's documented custom-model setup. "
+            "ORQIVRA does not insert custom identifiers into executable commands; compatibility and availability are UNVERIFIED."
+        )
+    elif edition == "codex":
+        command = f"codex --model {model}"
+        value = reasoning.get("value") if isinstance(reasoning, dict) else None
+        if isinstance(value, str) and _CLIENT_EFFORT_TOKEN.fullmatch(value):
+            command += f" --config 'model_reasoning_effort=\"{value}\"'"
+        selection = (
+            f"Main session: run `{command}`. "
+            "Codex effort uses `model_reasoning_effort` when the selected model supports it. "
+            "Codex subagents use separate `[agents]` settings; ORQIVRA does not map its role preferences into those settings. "
+            "Documentation: https://developers.openai.com/codex/config-advanced."
+        )
+    elif edition == "claude-code":
+        command = f"claude --model {model}"
+        value = reasoning.get("value") if isinstance(reasoning, dict) else None
+        if isinstance(value, str) and _CLIENT_EFFORT_TOKEN.fullmatch(value):
+            command += f" --effort {value}"
+            effort_note = ""
+        else:
+            effort_note = "The client default effort applies. "
+        selection = (
+            f"Main session: run `{command}`. {effort_note}"
+            "Subagents need their own model and effort settings; ORQIVRA does not apply this role preference automatically. "
+            "Documentation: https://code.claude.com/docs/en/model-config."
+        )
+    else:
+        selection_action = (
+            "run `gemini --model auto` or start `gemini` and use `/model` to choose Auto"
+            if model == "auto"
+            else f"run `gemini --model {model}` or start `gemini` and use `/model` to select Manual"
+        )
+        selection = (
+            f"Main session: {selection_action}. "
+            "The model selector does not set subagent models; ORQIVRA role preferences remain advisory. "
+            "Gemini CLI controls routing and fallback. This edition has no ORQIVRA reasoning-effort override. "
+            "Documentation: https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/model.md and "
+            "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/model-routing.md."
+        )
+        if model == "gemini-3.1-pro-preview":
+            selection += " Preview model availability depends on account rollout and access."
+    return (
+        f"{selection} This instruction applies only to the main session. "
+        "Multiple ORQIVRA role preferences are advisory; one launch command does not enforce every role."
+    )
+
+
 def _model_info(catalog: dict[str, Any], edition: str, provider: str, model: str, path: str) -> dict[str, Any]:
     entry = catalog.get("models", {}).get(model)
     if entry is None:
         raise OrqivraError(
-            f"{path}.model '{model}' is not in the catalog. Add model_source: 'user-supplied' to use a custom model; compatibility will be unverified."
+            f"{path}.model is not in the catalog. Add model_source: 'user-supplied' to use a custom model; compatibility will be unverified."
         )
     if entry.get("edition") != edition or entry.get("provider") != provider:
         raise OrqivraError(
-            f"{path}.model '{model}' is catalogued for {entry.get('edition') or 'no supported client edition'}, not {edition}; choose a model supported by this edition or a genuinely custom model ID."
+            f"{path}.model is catalogued for no supported client edition or a different provider; choose a model supported by this edition or mark a genuinely custom model with model_source: 'user-supplied'."
         )
     return entry
 
@@ -192,7 +255,7 @@ def _reasoning_result(
     native = CONTROL_FOR_PROVIDER[provider]
     if control != native or native is None:
         raise OrqivraError(
-            f"{path}.reasoning.control '{control}' is incompatible with model/provider '{provider}'. Choose a compatible control or set reasoning to null to use the client-native default."
+            f"{path}.reasoning.control is incompatible with this provider. Choose the provider's native reasoning control or set reasoning to null to use the client-native default."
         )
 
     # Unknown custom-model capabilities are never used to justify an inherited
@@ -211,11 +274,11 @@ def _reasoning_result(
 
     if known_control is not None and control != known_control:
         raise OrqivraError(
-            f"{path}.reasoning.control '{control}' is incompatible with model/provider '{provider}'. Choose a compatible control or set reasoning to null to use the client-native default."
+            f"{path}.reasoning.control is incompatible with the selected model. Choose its documented control or set reasoning to null to use the client-native default."
         )
     if isinstance(known_values, list) and value not in known_values:
         raise OrqivraError(
-            f"{path}.reasoning.value '{value}' is incompatible with the selected model. Choose one of {', '.join(known_values)} or set reasoning to null to defer to the client-native default."
+            f"{path}.reasoning.value is unsupported by the selected model. Choose one of {', '.join(known_values)} or set reasoning to null to defer to the client-native default."
         )
     if not explicit and model_changed:
         if not isinstance(known_values, list):
@@ -238,7 +301,8 @@ def resolve_edition(config: dict[str, Any], edition: str) -> dict[str, Any]:
         provider = override.get("provider") or base["provider"]
         if provider != expected_provider:
             raise OrqivraError(
-                f"{path}.provider must be '{expected_provider}' for edition '{edition}', not '{provider}'."
+                f'{path}.provider must be "{expected_provider}" for this edition. '
+                f'Set provider to "{expected_provider}" or omit it to inherit the edition provider.'
             )
         model = override.get("model") or base["model"]
         model_changed = model != base["model"]
@@ -248,7 +312,7 @@ def resolve_edition(config: dict[str, Any], edition: str) -> dict[str, Any]:
         if source == "user-supplied":
             if model in catalog.get("models", {}):
                 raise OrqivraError(
-                    f"{path}.model_source cannot be 'user-supplied' for catalog model '{model}'; use model_source: 'catalog'."
+                    f"{path}.model_source cannot be 'user-supplied' for a catalog model; use model_source: 'catalog'."
                 )
             entry = None
         else:
@@ -273,11 +337,17 @@ def resolve_edition(config: dict[str, Any], edition: str) -> dict[str, Any]:
         client_instructions = []
         if entry and entry.get("client_support"):
             client_instructions.append(str(entry["client_support"]))
-        if source == "user-supplied":
-            client_instructions.append(
-                "Configure this custom model in the client; ORQIVRA cannot verify its compatibility or availability. "
-                "Custom model compatibility is UNVERIFIED."
+        client_instructions.append(
+            _client_application_guidance(
+                edition,
+                model,
+                reasoning,
+                model_source=source,
+                catalog_model=entry is not None,
             )
+        )
+        if source == "user-supplied":
+            client_instructions.append("Custom model compatibility is UNVERIFIED.")
         elif compatibility.startswith("UNVERIFIED"):
             client_instructions.append(compatibility)
         if entry and entry.get("native_fallback"):

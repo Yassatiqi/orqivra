@@ -10,6 +10,8 @@ export type Edition = typeof EDITIONS[number];
 const ROLE_NAMES = ['orchestrator', 'implementer', 'complex_implementer', 'reviewer'] as const;
 type RoleName = typeof ROLE_NAMES[number];
 type Reasoning = { control: string; value: string } | null;
+const CLIENT_MODEL_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
+const CLIENT_EFFORT_TOKEN = /^[a-z][a-z0-9-]*$/;
 type ModelInfo = {
   provider: string;
   edition: string | null;
@@ -144,8 +146,9 @@ function readProjectConfig(path: string, explicit: boolean): JsonObject | null {
     throw new InputOutputError(`Could not read config file ${path}: ${messageOf(error)}`);
   }
   let content: string;
-  try { content = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+  try { content = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes); }
   catch (error) { throw new OrqivraError(`Config file is not valid UTF-8: ${path}: ${messageOf(error)}`); }
+  if (content.startsWith('\uFEFF')) content = content.slice(1);
   if (content.trim() === '') return Object.create(null) as JsonObject;
   const value = parseJson(content, path);
   if (!isObject(value)) throw new OrqivraError(`${path}: project configuration must be a JSON object.`);
@@ -165,7 +168,9 @@ function resolveRole(
     throw new OrqivraError(`The base profile role '${roleName}' is invalid.`);
   }
   const provider = override.provider === null || override.provider === undefined || override.provider === '' ? expectedProvider : override.provider;
-  if (provider !== expectedProvider) throw new OrqivraError(`editions.${edition}.roles.${roleName}.provider must be '${expectedProvider}'.`);
+  if (provider !== expectedProvider) {
+    throw new OrqivraError(`editions.${edition}.roles.${roleName}.provider must be "${expectedProvider}" for this edition. Set provider to "${expectedProvider}" or omit it to inherit the edition provider.`);
+  }
   const modelValue = override.model;
   const model = typeof modelValue === 'string' && modelValue !== '' ? modelValue : String(base.model);
   const modelChanged = model !== base.model;
@@ -174,16 +179,16 @@ function resolveRole(
   let modelInfo: ModelInfo | undefined;
   if (isObject(catalogValue)) {
     if (override.model_source === 'user-supplied') {
-      throw new OrqivraError(`editions.${edition}.roles.${roleName}.model_source cannot mark catalog model '${model}' as user-supplied.`);
+      throw new OrqivraError(`editions.${edition}.roles.${roleName}.model_source cannot mark a catalog model as user-supplied.`);
     }
     modelSource = 'catalog';
     modelInfo = catalogValue as ModelInfo;
     if (modelInfo.provider !== expectedProvider || modelInfo.edition !== edition) {
-      throw new OrqivraError(`editions.${edition}.roles.${roleName}.model '${model}' is not available for provider ${expectedProvider} in this edition.`);
+      throw new OrqivraError(`editions.${edition}.roles.${roleName}.model is not available for provider ${expectedProvider} in this edition.`);
     }
   } else {
     if (override.model_source !== 'user-supplied') {
-      throw new OrqivraError(`Unknown model '${model}' at editions.${edition}.roles.${roleName}.model. Add model_source: "user-supplied" to mark it as custom; its compatibility will be UNVERIFIED.`);
+      throw new OrqivraError(`The selected model is not in the catalog at editions.${edition}.roles.${roleName}.model. Add model_source: "user-supplied" to mark it as custom; its compatibility will be UNVERIFIED.`);
     }
     modelSource = 'user-supplied';
   }
@@ -200,7 +205,7 @@ function resolveRole(
     }
     else if (isObject(value) && typeof value.control === 'string' && typeof value.value === 'string') {
       reasoning = { control: value.control, value: value.value };
-      validateExplicitReasoning(reasoning, modelInfo, model, edition, roleName, modelSource);
+      validateExplicitReasoning(reasoning, modelInfo, edition, roleName, modelSource);
       reasoningResolution = 'configuration';
       reasoningCompatibility = modelSource === 'user-supplied'
         ? 'UNVERIFIED custom model'
@@ -223,15 +228,15 @@ function resolveRole(
       reasoning = { control: baseReasoning.control, value: baseReasoning.value };
       reasoningResolution = 'profile';
       if (modelInfo?.reasoning === null) {
-        throw new OrqivraError(`Inherited reasoning at editions.${edition}.roles.${roleName}.reasoning is unsupported by model '${model}'. Set reasoning: null to use the client default or select a model with this control.`);
+        throw new OrqivraError(`Inherited reasoning at editions.${edition}.roles.${roleName}.reasoning is unsupported by the selected model. Set reasoning: null to use the client default or select a model with this control.`);
       }
       if (modelInfo?.reasoning && (modelInfo.reasoning.control !== reasoning.control
         || Array.isArray(modelInfo.reasoning.values) && !modelInfo.reasoning.values.includes(reasoning.value))) {
-        throw new OrqivraError(`Inherited reasoning at editions.${edition}.roles.${roleName}.reasoning is incompatible with model '${model}'. Set reasoning: null to use the client default or choose a documented compatible value.`);
+        throw new OrqivraError(`Inherited reasoning at editions.${edition}.roles.${roleName}.reasoning is incompatible with the selected model. Set reasoning: null to use the client default or choose a documented compatible value.`);
       }
       if (modelChanged) {
         if (!modelInfo || !knownCompatibility(reasoning, modelInfo)) {
-          throw new OrqivraError(`Inherited reasoning at editions.${edition}.roles.${roleName}.reasoning cannot be confirmed for changed model '${model}'. Set reasoning: null to use the client default, choose a documented compatible value, or select a supported model.`);
+          throw new OrqivraError(`Inherited reasoning at editions.${edition}.roles.${roleName}.reasoning cannot be confirmed for the changed model. Set reasoning: null to use the client default, choose a documented compatible value, or select a supported model.`);
         }
       }
       reasoningCompatibility = modelSource === 'user-supplied'
@@ -246,7 +251,8 @@ function resolveRole(
   const runtimeQualification = modelSource === 'user-supplied' ? 'UNVERIFIED' : 'NOT_RUN';
   const clientInstructionItems: string[] = [];
   if (modelInfo?.client_support) clientInstructionItems.push(modelInfo.client_support);
-  if (modelSource === 'user-supplied') clientInstructionItems.push('Configure this custom model in the client; ORQIVRA cannot verify its compatibility or availability.');
+  clientInstructionItems.push(clientApplicationGuidance(edition, model, reasoning, modelSource, modelInfo !== undefined));
+  if (modelSource === 'user-supplied') clientInstructionItems.push('Custom model compatibility is UNVERIFIED.');
   if (reasoningCompatibility.startsWith('UNVERIFIED')) clientInstructionItems.push(reasoningCompatibility);
   if (modelInfo?.native_fallback) clientInstructionItems.push(modelInfo.native_fallback);
   if (clientInstructionItems.length === 0) clientInstructionItems.push(qualification);
@@ -262,18 +268,51 @@ function resolveRole(
     activatable: false,
     client_instructions: clientInstructions,
   };
-  if (modelSource === 'user-supplied') result.client_instructions = `${clientInstructions} Custom model compatibility is UNVERIFIED.`.trim();
   return result;
 }
 
-function validateExplicitReasoning(reasoning: Exclude<Reasoning, null>, modelInfo: ModelInfo | undefined, model: string, edition: Edition, role: RoleName, modelSource: string): void {
+function clientApplicationGuidance(
+  edition: Edition,
+  model: string,
+  reasoning: Reasoning,
+  modelSource: 'catalog' | 'user-supplied',
+  catalogModel: boolean,
+): string {
+  let selection: string;
+  if (modelSource === 'user-supplied' || !catalogModel || !CLIENT_MODEL_TOKEN.test(model)) {
+    selection = "Use the native client model picker or your provider's documented custom-model setup. ORQIVRA does not insert custom identifiers into executable commands; compatibility and availability are UNVERIFIED.";
+  } else if (edition === 'codex') {
+    let command = `codex --model ${model}`;
+    if (reasoning && reasoning.control === 'codex.model_reasoning_effort' && CLIENT_EFFORT_TOKEN.test(reasoning.value)) {
+      command += ` --config 'model_reasoning_effort=\"${reasoning.value}\"'`;
+    }
+    selection = `Main session: run \`${command}\`. Codex effort uses \`model_reasoning_effort\` when the selected model supports it. Codex subagents use separate \`[agents]\` settings; ORQIVRA does not map its role preferences into those settings. Documentation: https://developers.openai.com/codex/config-advanced.`;
+  } else if (edition === 'claude-code') {
+    let command = `claude --model ${model}`;
+    let effortNote = 'The client default effort applies. ';
+    if (reasoning && reasoning.control === 'claude-code.effort' && CLIENT_EFFORT_TOKEN.test(reasoning.value)) {
+      command += ` --effort ${reasoning.value}`;
+      effortNote = '';
+    }
+    selection = `Main session: run \`${command}\`. ${effortNote}Subagents need their own model and effort settings; ORQIVRA does not apply this role preference automatically. Documentation: https://code.claude.com/docs/en/model-config.`;
+  } else {
+    const selectionAction = model === 'auto'
+      ? 'run `gemini --model auto` or start `gemini` and use `/model` to choose Auto'
+      : `run \`gemini --model ${model}\` or start \`gemini\` and use \`/model\` to select Manual`;
+    selection = `Main session: ${selectionAction}. The model selector does not set subagent models; ORQIVRA role preferences remain advisory. Gemini CLI controls routing and fallback. This edition has no ORQIVRA reasoning-effort override. Documentation: https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/model.md and https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/model-routing.md.`;
+    if (model === 'gemini-3.1-pro-preview') selection += ' Preview model availability depends on account rollout and access.';
+  }
+  return `${selection} This instruction applies only to the main session. Multiple ORQIVRA role preferences are advisory; one launch command does not enforce every role.`;
+}
+
+function validateExplicitReasoning(reasoning: Exclude<Reasoning, null>, modelInfo: ModelInfo | undefined, edition: Edition, role: RoleName, modelSource: string): void {
   const path = `editions.${edition}.roles.${role}.reasoning`;
   const expectedControl = modelInfo?.reasoning?.control ?? (edition === 'codex' ? 'codex.model_reasoning_effort' : edition === 'claude-code' ? 'claude-code.effort' : null);
   if (expectedControl === null || reasoning.control !== expectedControl) {
     throw new OrqivraError(`${path}.control is incompatible with ${edition}; choose ${expectedControl ?? 'the client-native default'} or set reasoning: null.`);
   }
   if (modelSource === 'catalog' && modelInfo?.reasoning?.values && !modelInfo.reasoning.values.includes(reasoning.value)) {
-    throw new OrqivraError(`${path}.value '${reasoning.value}' is unsupported by model '${model}'. Choose one of: ${modelInfo.reasoning.values.join(', ')}, or set reasoning: null.`);
+    throw new OrqivraError(`${path}.value is unsupported by the selected model. Choose one of: ${modelInfo.reasoning.values.join(', ')}, or set reasoning: null.`);
   }
 }
 

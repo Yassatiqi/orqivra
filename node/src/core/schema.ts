@@ -18,7 +18,7 @@ export function validateData(data: JsonValue, schemaName: string): string[] {
   const schema = asObject(readJson(schemaPath), `Schema ${schemaName}`);
   assertSupportedSchema(schema, schemaPath, '', new Set());
   const errors: string[] = [];
-  validateAt(data, schema, schemaPath, '$', errors, new Set());
+  validateAt(data, schema, schemaPath, '$', errors, new Set(), schemaName === 'config.schema.json');
   return errors.sort();
 }
 
@@ -36,6 +36,7 @@ function validateAt(
   location: string,
   errors: string[],
   refStack: Set<string>,
+  safeConfigDiagnostics: boolean,
 ): void {
   if (typeof schema.$ref === 'string') {
     const resolved = resolveRef(schema.$ref, schemaPath);
@@ -45,22 +46,34 @@ function validateAt(
       return;
     }
     refStack.add(refKey);
-    validateAt(value, resolved.schema, resolved.path, location, errors, refStack);
+    validateAt(value, resolved.schema, resolved.path, location, errors, refStack, safeConfigDiagnostics);
     refStack.delete(refKey);
   }
 
   if (schema.type !== undefined && !matchesType(value, schema.type)) {
-    errors.push(`${location}: expected ${displayType(schema.type)}.`);
+    errors.push(safeConfigDiagnostics
+      ? `${location}: expected ${displayType(schema.type)}. ${typeRemediation(schema.type)}`
+      : `${location}: expected ${displayType(schema.type)}.`);
     return;
   }
-  if (schema.const !== undefined && !sameJson(value, schema.const)) errors.push(`${location}: does not equal its required constant.`);
+  if (schema.const !== undefined && !sameJson(value, schema.const)) {
+    errors.push(safeConfigDiagnostics
+      ? `${location}: must use the schema-defined value ${JSON.stringify(schema.const)}. Restore this documented value.`
+      : `${location}: does not equal its required constant.`);
+  }
   if (Array.isArray(schema.enum) && !schema.enum.some((candidate) => sameJson(value, candidate))) {
-    errors.push(`${location}: value is not in the allowed set.`);
+    errors.push(safeConfigDiagnostics
+      ? `${location}: must be one of the documented values: ${schema.enum.map((candidate) => JSON.stringify(candidate)).join(', ')}. Choose one of these values.`
+      : `${location}: value is not in the allowed set.`);
   }
 
   if (typeof value === 'string') {
     const length = Array.from(value).length;
-    if (typeof schema.minLength === 'number' && length < schema.minLength) errors.push(`${location}: string is too short.`);
+    if (typeof schema.minLength === 'number' && length < schema.minLength) {
+      errors.push(safeConfigDiagnostics
+        ? `${location}: must contain at least ${schema.minLength} character(s). Enter a longer non-empty value.`
+        : `${location}: string is too short.`);
+    }
     if (typeof schema.maxLength === 'number' && length > schema.maxLength) errors.push(`${location}: string is too long.`);
     if (typeof schema.pattern === 'string') {
       try {
@@ -73,8 +86,16 @@ function validateAt(
   }
 
   if (typeof value === 'number') {
-    if (typeof schema.minimum === 'number' && value < schema.minimum) errors.push(`${location}: number is below the minimum.`);
-    if (typeof schema.maximum === 'number' && value > schema.maximum) errors.push(`${location}: number is above the maximum.`);
+    if (typeof schema.minimum === 'number' && value < schema.minimum) {
+      errors.push(safeConfigDiagnostics
+        ? `${location}: must be at least ${schema.minimum}. Increase this value to at least ${schema.minimum}.`
+        : `${location}: number is below the minimum.`);
+    }
+    if (typeof schema.maximum === 'number' && value > schema.maximum) {
+      errors.push(safeConfigDiagnostics
+        ? `${location}: must be at most ${schema.maximum}. Reduce this value to no more than ${schema.maximum}.`
+        : `${location}: number is above the maximum.`);
+    }
   }
 
   if (Array.isArray(value)) {
@@ -89,15 +110,15 @@ function validateAt(
       }
     }
     if (isObject(schema.items)) {
-      value.forEach((item, index) => validateAt(item, schema.items as Schema, schemaPath, `${location}[${index}]`, errors, refStack));
+      value.forEach((item, index) => validateAt(item, schema.items as Schema, schemaPath, `${location}[${index}]`, errors, refStack, safeConfigDiagnostics));
     }
   }
 
-  if (isObject(value)) validateObject(value, schema, schemaPath, location, errors, refStack);
+  if (isObject(value)) validateObject(value, schema, schemaPath, location, errors, refStack, safeConfigDiagnostics);
 
   if (isObject(schema.not)) {
     const nestedErrors: string[] = [];
-    validateAt(value, schema.not, schemaPath, location, nestedErrors, refStack);
+    validateAt(value, schema.not, schemaPath, location, nestedErrors, refStack, safeConfigDiagnostics);
     if (nestedErrors.length === 0) errors.push(`${location}: value matches a forbidden schema.`);
   }
 }
@@ -163,6 +184,7 @@ function validateObject(
   location: string,
   errors: string[],
   refStack: Set<string>,
+  safeConfigDiagnostics: boolean,
 ): void {
   if (typeof schema.minProperties === 'number' && Object.keys(value).length < schema.minProperties) {
     errors.push(`${location}: object has too few properties.`);
@@ -175,15 +197,15 @@ function validateObject(
   }
   for (const [name, propertySchema] of Object.entries(properties)) {
     if (Object.hasOwn(value, name) && isObject(propertySchema)) {
-      validateAt(value[name], propertySchema, schemaPath, childLocation(location, name), errors, refStack);
+      validateAt(value[name], propertySchema, schemaPath, childLocation(location, name), errors, refStack, safeConfigDiagnostics);
     }
   }
   for (const [name, propertyValue] of Object.entries(value)) {
     if (Object.hasOwn(properties, name)) continue;
     if (schema.additionalProperties === false) {
-      errors.push(`${childLocation(location, name)}: additional property is not allowed.`);
+      errors.push(`${location}: additional property is not allowed; remove unsupported properties defined by the schema.`);
     } else if (isObject(schema.additionalProperties)) {
-      validateAt(propertyValue, schema.additionalProperties, schemaPath, childLocation(location, name), errors, refStack);
+      validateAt(propertyValue, schema.additionalProperties, schemaPath, childLocation(location, name), errors, refStack, safeConfigDiagnostics);
     }
   }
 }
@@ -220,6 +242,21 @@ function matchesType(value: JsonValue, expected: JsonValue): boolean {
 
 function displayType(expected: JsonValue): string {
   return Array.isArray(expected) ? expected.map(String).join(' or ') : String(expected);
+}
+
+function typeRemediation(expected: JsonValue): string {
+  const types = Array.isArray(expected) ? expected.map(String) : [String(expected)];
+  if (types.length !== 1) return `Set this field to one of these types: ${types.join(' or ')}.`;
+  const remediation: Record<string, string> = {
+    integer: 'Set this field to a whole number.',
+    number: 'Set this field to a number.',
+    string: 'Set this field to a string.',
+    boolean: 'Set this field to true or false.',
+    object: 'Set this field to a JSON object.',
+    array: 'Set this field to a JSON array.',
+    null: 'Set this field to null.',
+  };
+  return remediation[types[0]] ?? 'Set this field to the documented type.';
 }
 
 function isDateTime(value: string): boolean {

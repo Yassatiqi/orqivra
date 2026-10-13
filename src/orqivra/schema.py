@@ -32,7 +32,7 @@ def load_json(path: Path) -> Any:
         result: dict[str, Any] = {}
         for key, value in pairs:
             if key in result:
-                raise ValueError(f"Duplicate JSON object key: {key}")
+                raise ValueError("Duplicate JSON object key.")
             result[key] = value
         return result
 
@@ -43,22 +43,22 @@ def load_json(path: Path) -> Any:
         return result
 
     def reject_fraction(value: str) -> Any:
-        raise ValueError(f"Fractional JSON numbers are not supported: {value}")
+        raise ValueError("Fractional JSON numbers are not supported.")
 
     def reject_constant(value: str) -> Any:
-        raise ValueError(f"Non-finite JSON numbers are not supported: {value}")
+        raise ValueError("Non-finite JSON numbers are not supported.")
 
-    def reject_lone_surrogates(value: Any, location: str = "$") -> None:
+    def reject_lone_surrogates(value: Any) -> None:
         if isinstance(value, str):
             if any(0xD800 <= ord(character) <= 0xDFFF for character in value):
-                raise ValueError(f"Lone surrogate code point is not allowed at {location}.")
+                raise ValueError("Lone surrogate code point is not allowed.")
         elif isinstance(value, list):
-            for index, item in enumerate(value):
-                reject_lone_surrogates(item, f"{location}/{index}")
+            for item in value:
+                reject_lone_surrogates(item)
         elif isinstance(value, dict):
             for key, item in value.items():
-                reject_lone_surrogates(key, f"{location}/<key>")
-                reject_lone_surrogates(item, f"{location}/{key}")
+                reject_lone_surrogates(key)
+                reject_lone_surrogates(item)
 
     try:
         with path.open("r", encoding="utf-8") as stream:
@@ -102,3 +102,102 @@ def require_valid(data: Any, schema_name: str) -> None:
     errors = validate_data(data, schema_name)
     if errors:
         raise OrqivraError(f"{schema_name} validation failed:\n- " + "\n- ".join(errors))
+
+
+def require_valid_config(data: Any) -> None:
+    """Validate project configuration without formatting user-supplied values."""
+    schema_name = "config.schema.json"
+    schema = load_json(schema_directory() / schema_name)
+    validator = Draft202012Validator(schema, registry=_registry(), format_checker=FormatChecker())
+    errors = sorted(
+        (_safe_config_error(error, schema) for error in validator.iter_errors(data)),
+        key=lambda item: item,
+    )
+    if errors:
+        raise OrqivraError(f"{schema_name} validation failed:\n- " + "\n- ".join(errors))
+
+
+def _safe_config_error(error: Any, root_schema: dict[str, Any]) -> str:
+    location, unknown_component = _safe_config_location(error.absolute_path, root_schema)
+    validator = error.validator
+    if validator == "type":
+        expected = error.validator_value
+        expected_text = " or ".join(expected) if isinstance(expected, list) else str(expected)
+        return f"{location}: expected {expected_text}. {_type_remediation(expected)}"
+    if validator == "enum":
+        allowed = error.validator_value
+        choices = ", ".join(_safe_schema_literal(item) for item in allowed)
+        return f"{location}: must be one of the documented values: {choices}. Choose one of these values."
+    if validator == "const":
+        fixed = _safe_schema_literal(error.validator_value)
+        return f"{location}: must use the schema-defined value {fixed}. Restore this documented value."
+    if validator == "minimum":
+        return f"{location}: must be at least {error.validator_value}. Increase this value to at least {error.validator_value}."
+    if validator == "maximum":
+        return f"{location}: must be at most {error.validator_value}. Reduce this value to no more than {error.validator_value}."
+    if validator == "minLength":
+        return f"{location}: must contain at least {error.validator_value} character(s). Enter a longer non-empty value."
+    if validator == "required":
+        missing = next((name for name in error.validator_value if name not in error.instance), None)
+        suffix = f" '{missing}'" if isinstance(missing, str) else ""
+        return f"{location}: add the required property{suffix}."
+    if validator == "additionalProperties" or unknown_component:
+        return f"{location}: remove unsupported properties; configuration keys are defined by the schema."
+    return f"{location}: does not satisfy the configuration schema constraint."
+
+
+def _safe_schema_literal(value: Any) -> str:
+    """Render trusted schema metadata, never an invalid submitted value."""
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _type_remediation(expected: Any) -> str:
+    types = expected if isinstance(expected, list) else [expected]
+    if len(types) != 1:
+        return f"Set this field to one of these types: {' or '.join(str(item) for item in types)}."
+    remediation = {
+        "integer": "Set this field to a whole number.",
+        "number": "Set this field to a number.",
+        "string": "Set this field to a string.",
+        "boolean": "Set this field to true or false.",
+        "object": "Set this field to a JSON object.",
+        "array": "Set this field to a JSON array.",
+        "null": "Set this field to null.",
+    }
+    return remediation.get(types[0], "Set this field to the documented type.")
+
+
+def _safe_config_location(components: Any, schema: dict[str, Any]) -> tuple[str, bool]:
+    location = "$"
+    current: Any = schema
+    unknown = False
+    for component in components:
+        current = _resolve_local_config_ref(current, schema)
+        if isinstance(component, int):
+            items = current.get("items") if isinstance(current, dict) else None
+            if not isinstance(items, dict):
+                break
+            location += f"[{component}]"
+            current = items
+            continue
+        properties = current.get("properties", {}) if isinstance(current, dict) else {}
+        if not isinstance(properties, dict) or component not in properties:
+            unknown = True
+            break
+        location += f".{component}"
+        current = properties[component]
+    return location, unknown
+
+
+def _resolve_local_config_ref(value: Any, root_schema: dict[str, Any]) -> Any:
+    while isinstance(value, dict) and isinstance(value.get("$ref"), str):
+        reference = value["$ref"]
+        if not reference.startswith("#/"):
+            break
+        resolved: Any = root_schema
+        for component in reference[2:].split("/"):
+            if not isinstance(resolved, dict) or component not in resolved:
+                return value
+            resolved = resolved[component]
+        value = resolved
+    return value

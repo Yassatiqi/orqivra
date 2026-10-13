@@ -42,7 +42,7 @@ class JsonReader {
       this.skipWhitespace();
       if (this.text[this.position] !== '"') this.fail('Object keys must be strings');
       const key = this.parseString();
-      if (Object.hasOwn(result, key)) this.fail(`Duplicate object key: ${key}`);
+      if (Object.hasOwn(result, key)) this.fail('Duplicate object key');
       this.skipWhitespace();
       if (this.text[this.position] !== ':') this.fail('Expected colon after object key');
       this.position += 1;

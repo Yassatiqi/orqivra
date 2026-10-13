@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { markdownConfig, resolveConfiguration, validateProjectConfig } from '../../dist/core/config.js';
+import { InputOutputError } from '../../dist/core/errors.js';
 
 const scratch = () => mkdtempSync(resolve(tmpdir(), 'orqivra config test '));
 const save = (directory, text) => {
@@ -50,13 +51,19 @@ test('dangling discovered config symlinks never fall back to defaults', (context
     try {
       symlinkSync(resolve(directory, 'missing target.json'), linkPath, 'file');
     } catch (error) {
-      if (['EPERM', 'EACCES', 'ENOSYS'].includes(error.code)) {
+      if (process.platform === 'win32' && error.code === 'EPERM') {
         context.skip(`The platform does not allow creating a dangling symlink for this test: ${error.code}`);
         return;
       }
       throw error;
     }
-    assert.throws(() => resolveConfiguration('codex', undefined, directory), /Could not read valid UTF-8 config file/);
+    assert.throws(() => resolveConfiguration('codex', undefined, directory), (error) => {
+      assert.ok(error instanceof InputOutputError);
+      assert.equal(error.exitCode, 4);
+      assert.match(error.message, /Could not read config file/);
+      assert.match(error.message, /orqivra\.config\.json/);
+      return true;
+    });
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -166,7 +173,13 @@ test('explicit reasoning is checked against known model controls and values with
     const incompatible = save(directory, JSON.stringify({
       editions: { 'claude-code': { roles: { implementer: { reasoning: { control: 'claude-code.effort', value: 'ultra' } } } } },
     }));
-    assert.throws(() => resolveConfiguration('claude-code', incompatible), /reasoning\.value 'ultra' is unsupported.*set reasoning: null/);
+    assert.throws(() => resolveConfiguration('claude-code', incompatible), (error) => {
+      assert.match(error.message, /editions\.claude-code\.roles\.implementer\.reasoning\.value is unsupported/);
+      assert.match(error.message, /Choose one of: low, medium, high, xhigh, max/);
+      assert.match(error.message, /set reasoning: null/);
+      assert.doesNotMatch(error.message, /ultra/);
+      return true;
+    });
 
     const valid = save(directory, JSON.stringify({
       editions: { 'claude-code': { roles: { implementer: { reasoning: { control: 'claude-code.effort', value: 'high' } } } } },
@@ -201,7 +214,12 @@ test('custom models require explicit user-supplied provenance and remain unquali
     const mislabeled = save(directory, JSON.stringify({
       editions: { codex: { roles: { implementer: { model: 'gpt-6-luna', model_source: 'user-supplied' } } } },
     }));
-    assert.throws(() => resolveConfiguration('codex', mislabeled), /cannot mark catalog model/);
+    assert.throws(() => resolveConfiguration('codex', mislabeled), (error) => {
+      assert.match(error.message, /editions\.codex\.roles\.implementer\.model_source/);
+      assert.match(error.message, /cannot mark a catalog model as user-supplied/);
+      assert.doesNotMatch(error.message, /gpt-6-luna/);
+      return true;
+    });
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

@@ -110,6 +110,44 @@ Validate a selected file explicitly with `orqivra config validate --config ./orq
 
 An omitted, null, or empty-string provider/model setting inherits the edition provider and base profile model. If reasoning is omitted and the model is unchanged, the profile value remains. For Codex, the catalog does not enumerate supported reasoning values, so the setting is shown as `UNVERIFIED`, not documented compatibility. After a model change, inherited reasoning carries only when compatibility is known; otherwise validation explains how to select a compatible value or defer to the client with `"reasoning": null`. Explicit values are checked against catalog lists when available; an unenumerated value is accepted structurally and marked `UNVERIFIED`. Null clears the inherited preference and uses the selected model's documented client default where known, otherwise the client's own default. Unknown custom model IDs require `"model_source": "user-supplied"` and remain unqualified; ORQIVRA does not infer their supported reasoning controls.
 
+## Edit, inspect, apply, and run a workflow
+
+This example uses Codex. Before applying it, install the Codex CLI, sign in through its normal client flow, and confirm your account can use the selected model. ORQIVRA does not sign in or test account access. In the project root, create or edit `orqivra.config.json` with a model preference for one role:
+
+```json
+{
+  "schema_version": 1,
+  "editions": {
+    "codex": {
+      "roles": {
+        "orchestrator": {
+          "model": "gpt-6-luna",
+          "reasoning": {
+            "control": "codex.model_reasoning_effort",
+            "value": "max"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Validate and inspect the resolved configuration from the shell where the Python venv or installed npm command is on `PATH`:
+
+```text
+orqivra config validate --config ./orqivra.config.json
+orqivra config show --edition codex --config ./orqivra.config.json --format markdown
+```
+
+Read the generated `client_instructions`, then start a new Codex main session using its command. For this example, the command is:
+
+```text
+codex --model gpt-6-luna --config 'model_reasoning_effort="max"'
+```
+
+This launch applies the model and effort to that main Codex session, subject to model support and account access. It does not configure Codex subagents or enforce the other ORQIVRA role preferences. Editing the ORQIVRA file alone does not switch a running client. To try ORQIVRA's disposable workflow after returning to a shell, run `examples\quickstart.ps1` in PowerShell or `sh examples/quickstart.sh` on POSIX. The `orqivra` command must remain on `PATH` in that shell; the workflow script uses the installed CLI and does not require the client to be active.
+
 For example, when replacing a role's model but letting the client choose reasoning, use a null preference rather than keeping the old model's setting:
 
 ```json

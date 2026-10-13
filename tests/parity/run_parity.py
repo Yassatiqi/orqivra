@@ -109,6 +109,82 @@ class Harness:
         if inherited["workflow"]["preferred_parallelism"] != 2:
             raise ParityFailure("An explicit whitespace-only config did not inherit packaged defaults.")
 
+        for fixture_name, expected_parallelism in (
+            ("config-bom-empty.json", 2),
+            ("config-bom-nonempty.json", 3),
+        ):
+            bom_fixture = FIXTURE_ROOT / fixture_name
+            bom_result = compare_show("codex", config=bom_fixture, cwd=config_root)
+            if bom_result["workflow"]["preferred_parallelism"] != expected_parallelism:
+                raise ParityFailure(f"{fixture_name} resolved an unexpected effective configuration.")
+            validate_args = ["config", "validate", "--config", str(bom_fixture)]
+            python_bom_validate = self.successful_json("python", validate_args, cwd=config_root)
+            node_bom_validate = self.successful_json("node", validate_args, cwd=config_root)
+            if python_bom_validate != node_bom_validate or python_bom_validate["valid"] is not True:
+                raise ParityFailure(f"{fixture_name} validity differs between runtimes.")
+
+        invalid_json_fixtures = {
+            "multiple-bom.json": b"\xef\xbb\xbf\xef\xbb\xbf{}",
+            "misplaced-bom.json": b'{"workflow":\xef\xbb\xbf{"preferred_parallelism":3}}',
+            "invalid-utf8.json": b"{\xff}",
+        }
+        for filename, content in invalid_json_fixtures.items():
+            invalid_path = config_root / filename
+            invalid_path.write_bytes(content)
+            for runtime in ("python", "node"):
+                result = self.expect_exit(runtime, ["config", "validate", "--config", str(invalid_path)], 2, cwd=config_root)
+                if "traceback" in f"{result.stdout}\n{result.stderr}".lower():
+                    raise ParityFailure(f"{runtime} returned an uncontrolled {filename} error.")
+
+        self.record("single-leading-bom-effective-config-and-invalid-bom-decisions-match")
+
+        redaction_cases = {
+            "wrong-object": (
+                {"workflow": {"preferred_parallelism": {"api_key": "AUDIT_SENTINEL_OBJECT_VALUE"}}},
+                "workflow.preferred_parallelism",
+                ("AUDIT_SENTINEL_OBJECT_VALUE", "api_key"),
+            ),
+            "wrong-scalar": (
+                {"workflow": {"preferred_parallelism": "AUDIT_SENTINEL_SCALAR"}},
+                "workflow.preferred_parallelism",
+                ("AUDIT_SENTINEL_SCALAR",),
+            ),
+            "wrong-array": (
+                {"workflow": {"preferred_parallelism": ["AUDIT_SENTINEL_ARRAY"]}},
+                "workflow.preferred_parallelism",
+                ("AUDIT_SENTINEL_ARRAY",),
+            ),
+            "unknown-property": (
+                {"workflow": {"AUDIT_SENTINEL_UNKNOWN_KEY": "AUDIT_SENTINEL_UNKNOWN_VALUE"}},
+                "workflow",
+                ("AUDIT_SENTINEL_UNKNOWN_KEY", "AUDIT_SENTINEL_UNKNOWN_VALUE"),
+            ),
+            "provider": (
+                {"editions": {"codex": {"roles": {"implementer": {"provider": "AUDIT_SENTINEL_PROVIDER"}}}}},
+                "editions.codex.roles.implementer.provider",
+                ("AUDIT_SENTINEL_PROVIDER",),
+            ),
+            "reasoning": (
+                {"editions": {"claude-code": {"roles": {"implementer": {
+                    "reasoning": {"control": "claude-code.effort", "value": "AUDIT_SENTINEL_REASONING"}
+                }}}}},
+                "editions.claude-code.roles.implementer.reasoning.value",
+                ("AUDIT_SENTINEL_REASONING",),
+            ),
+        }
+        for label, (value, expected_path, secrets) in redaction_cases.items():
+            config_path = config_root / f"redaction-{label}.json"
+            config_path.write_text(json.dumps(value), encoding="utf-8")
+            for runtime in ("python", "node"):
+                result = self.expect_exit(runtime, ["config", "validate", "--config", str(config_path)], 2, cwd=config_root)
+                diagnostic = f"{result.stdout}\n{result.stderr}"
+                if expected_path.lower() not in diagnostic.lower() or "traceback" in diagnostic.lower():
+                    raise ParityFailure(f"{runtime} {label} diagnostic lacks a safe path or controlled error: {diagnostic}")
+                if any(secret in diagnostic for secret in secrets):
+                    raise ParityFailure(f"{runtime} {label} diagnostic exposed a sentinel value or property name.")
+
+        self.record("configuration-diagnostic-redaction-matches-for-values-unknown-keys-provider-and-reasoning")
+
         empty_override = config_root / "empty-override.json"
         empty_override.write_text(json.dumps({"editions": {"claude-code": {"roles": {
             "implementer": {"provider": "", "model": ""}

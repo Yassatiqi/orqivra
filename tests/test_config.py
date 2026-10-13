@@ -153,11 +153,9 @@ class ModelResolutionTests(unittest.TestCase):
         self.assertEqual(role["model_source"], "user-supplied")
         self.assertEqual(role["runtime_qualification"], "UNVERIFIED")
         self.assertEqual(role["reasoning_resolution"], "client-default")
-        self.assertIn(
-            "Configure this custom model in the client; ORQIVRA cannot verify its compatibility or availability. "
-            "Custom model compatibility is UNVERIFIED.",
-            role["client_instructions"],
-        )
+        self.assertIn("Use the native client model picker", role["client_instructions"])
+        self.assertIn("does not insert custom identifiers into executable commands", role["client_instructions"])
+        self.assertIn("Custom model compatibility is UNVERIFIED", role["client_instructions"])
 
     def test_empty_model_and_provider_values_inherit_the_profile(self) -> None:
         with tempfile.TemporaryDirectory(prefix="orqivra-empty-inheritance-") as temporary:
