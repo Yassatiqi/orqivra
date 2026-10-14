@@ -36,12 +36,12 @@ The v0.3.0 source is a pre-release candidate. Documentation, schemas, or local a
 
 | Gate | Current state | Evidence needed |
 |---|---|---|
-| Python 3.11 Windows junction protection | `UNRESOLVED` | Execute the required real junction regressions on Python 3.11 for Windows; Python 3.13 or mocked paths do not qualify it. |
+| Python 3.11 Windows junction protection | `PASS` for commit `fd64f52b1baa3cbe23f87291748086d2747690f3` | The Windows Python 3.11 regression suite and required junction qualification gate passed in [Actions run 38479211635](https://github.com/Yassatiqi/orqivra/actions/runs/38479211635). This qualifies that commit and runner snapshot. |
 | Codex client activation | `NOT_RUN` | Observe discovery and activation in the supported Codex client. |
 | Claude Code client activation | `NOT_RUN` | Observe discovery and activation in a supported client version/account. |
 | Gemini CLI activation and preview access | `NOT_RUN` | Observe discovery plus model access in an eligible client/account; preview access can vary. |
 | Gemini CLI support for `gemini-3.8-flash` | `UNRESOLVED` | Supported CLI documentation or actual CLI execution must establish support. |
-| GitHub Actions | `NOT_RUN` | Observe a real workflow run and its result; checked-in CI configuration is not a pass. |
+| GitHub Actions | `PASS` for commit `fd64f52b1baa3cbe23f87291748086d2747690f3` | [Actions run 38479211635](https://github.com/Yassatiqi/orqivra/actions/runs/38479211635) completed successfully across all 10 jobs. A later source commit needs its own observed result. |
 | npm/PyPI name ownership and publisher access | `NOT_RUN` | Verify the exact package names and publishing account eligibility on each registry. |
 | Private vulnerability reporting | `UNRESOLVED` external checklist item | Verify the repository's private reporting route or provide an approved, verified private contact. No maintainer address or enabled setting is assumed. |
 
